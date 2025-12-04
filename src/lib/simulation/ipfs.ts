@@ -10,25 +10,48 @@
  * - Return content-addressed identifiers (CIDs)
  * 
  * Our simulation:
- * - Stores files in memory (browser)
+ * - Stores file metadata in localStorage for persistence
  * - Generates fake but realistic CID strings
- * - Provides retrieval functionality
+ * - File content is stored as base64 in localStorage
  */
 
-// In-memory storage for simulated IPFS
-const ipfsStorage: Map<string, { file: File; metadata: IPFSMetadata }> = new Map();
+const STORAGE_KEY = 'zkvault_ipfs_storage';
 
 export interface IPFSMetadata {
   filename: string;
   size: number;
   type: string;
-  uploadedAt: Date;
+  uploadedAt: string;
   uploadedBy: string;
+  dataUrl?: string; // Store file content as base64
 }
 
 export interface IPFSResponse {
   cid: string;
   metadata: IPFSMetadata;
+}
+
+interface StoredIPFS {
+  [cid: string]: IPFSMetadata;
+}
+
+/**
+ * Load IPFS storage from localStorage
+ */
+function loadStorage(): StoredIPFS {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Save IPFS storage to localStorage
+ */
+function saveStorage(storage: StoredIPFS): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
 }
 
 /**
@@ -39,17 +62,14 @@ export interface IPFSResponse {
  * @returns Fake CID string
  */
 function generateFakeCID(content: string): string {
-  // Create a simple hash-like string for demonstration
   const chars = 'abcdefghijklmnopqrstuvwxyz234567';
   let hash = '';
   
-  // Use content to seed the generation for determinism
   let seed = 0;
   for (let i = 0; i < content.length; i++) {
     seed = ((seed << 5) - seed + content.charCodeAt(i)) | 0;
   }
   
-  // Generate CIDv1 format (starts with "bafy")
   const prefix = 'bafybeig';
   for (let i = 0; i < 44; i++) {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -62,12 +82,6 @@ function generateFakeCID(content: string): string {
 /**
  * SIMULATED: Store a file in IPFS
  * 
- * In reality, this would:
- * 1. Chunk the file
- * 2. Create Merkle DAG nodes
- * 3. Upload to IPFS network
- * 4. Return content-addressed CID
- * 
  * @param file - File to store
  * @param uploadedBy - User ID who uploaded
  * @returns Promise with CID and metadata
@@ -77,7 +91,6 @@ export async function storeFile(file: File, uploadedBy: string): Promise<IPFSRes
     const reader = new FileReader();
     
     reader.onload = () => {
-      // Generate CID based on file content
       const content = reader.result as string;
       const cid = generateFakeCID(content + file.name + Date.now());
       
@@ -85,12 +98,15 @@ export async function storeFile(file: File, uploadedBy: string): Promise<IPFSRes
         filename: file.name,
         size: file.size,
         type: file.type,
-        uploadedAt: new Date(),
+        uploadedAt: new Date().toISOString(),
         uploadedBy,
+        dataUrl: content, // Store the file content
       };
       
-      // Store in our simulated IPFS
-      ipfsStorage.set(cid, { file, metadata });
+      // Save to localStorage
+      const storage = loadStorage();
+      storage[cid] = metadata;
+      saveStorage(storage);
       
       // Simulate network delay
       setTimeout(() => {
@@ -103,14 +119,14 @@ export async function storeFile(file: File, uploadedBy: string): Promise<IPFSRes
 }
 
 /**
- * SIMULATED: Retrieve a file from IPFS
+ * SIMULATED: Retrieve file metadata from IPFS
  * 
  * @param cid - Content identifier
- * @returns File and metadata if found
+ * @returns Metadata if found
  */
-export function getFile(cid: string): { file: File; metadata: IPFSMetadata } | null {
-  const stored = ipfsStorage.get(cid);
-  return stored || null;
+export function getFile(cid: string): IPFSMetadata | null {
+  const storage = loadStorage();
+  return storage[cid] || null;
 }
 
 /**
@@ -120,23 +136,21 @@ export function getFile(cid: string): { file: File; metadata: IPFSMetadata } | n
  * @returns Boolean indicating existence
  */
 export function cidExists(cid: string): boolean {
-  return ipfsStorage.has(cid);
+  const storage = loadStorage();
+  return cid in storage;
 }
 
 /**
  * Get all stored files (for admin view)
  */
 export function getAllFiles(): Array<{ cid: string; metadata: IPFSMetadata }> {
-  const files: Array<{ cid: string; metadata: IPFSMetadata }> = [];
-  ipfsStorage.forEach((value, cid) => {
-    files.push({ cid, metadata: value.metadata });
-  });
-  return files;
+  const storage = loadStorage();
+  return Object.entries(storage).map(([cid, metadata]) => ({ cid, metadata }));
 }
 
 /**
  * Clear IPFS storage (for testing)
  */
 export function clearIPFS(): void {
-  ipfsStorage.clear();
+  localStorage.removeItem(STORAGE_KEY);
 }

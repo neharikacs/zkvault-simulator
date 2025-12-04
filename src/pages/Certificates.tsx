@@ -7,7 +7,8 @@
  * - Quick actions (revoke, suspend)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { getAllCertificates, CertificateRecord } from '@/lib/simulation/blockchain';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,8 @@ import {
   Clock,
   Database,
   User,
-  Filter,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,7 +32,14 @@ export default function Certificates() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'revoked' | 'suspended'>('all');
   const [selectedCert, setSelectedCert] = useState<CertificateRecord | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   
+  const refreshData = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+    setSelectedCert(null);
+  }, []);
+  
+  // Re-fetch certificates on refresh
   const certificates = getAllCertificates();
   
   const filteredCertificates = certificates.filter(cert => {
@@ -67,6 +76,18 @@ export default function Certificates() {
             <p className="text-muted-foreground mt-1">
               {certificates.length} certificates in the registry
             </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={refreshData}>
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+            <Link to="/revoke">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="w-4 h-4" />
+                Manage Status
+              </Button>
+            </Link>
           </div>
         </div>
         
