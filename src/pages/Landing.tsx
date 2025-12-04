@@ -7,13 +7,66 @@
  * - Login options for different roles
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArchitectureDiagram } from '@/components/ArchitectureDiagram';
 import { Shield, Lock, FileCheck, Zap, Users, Eye } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function Landing() {
+  const [selectedFeature, setSelectedFeature] = useState<{
+    icon: React.ElementType;
+    title: string;
+    description: string;
+    details: string;
+  } | null>(null);
+
+  const features = [
+    {
+      icon: FileCheck,
+      title: 'Tamper-Proof Certificates',
+      description: 'Certificates are hashed with SHA-256 and stored on an immutable blockchain ledger.',
+      details: 'Our system uses SHA-256 cryptographic hashing to create a unique fingerprint of each certificate. This hash is then stored on a simulated blockchain ledger, ensuring immutability. Any modification to the original certificate would result in a different hash, immediately exposing tampering attempts.',
+    },
+    {
+      icon: Lock,
+      title: 'zk-SNARK Proofs',
+      description: 'Generate zero-knowledge proofs for selective attribute disclosure without revealing sensitive data.',
+      details: 'Zero-Knowledge Succinct Non-Interactive Arguments of Knowledge (zk-SNARKs) allow certificate holders to prove specific attributes (like "age > 18" or "degree verified") without revealing the entire certificate. This preserves privacy while enabling verification.',
+    },
+    {
+      icon: Shield,
+      title: 'Decentralized Storage',
+      description: 'IPFS integration for distributed, content-addressed file storage with unique CIDs.',
+      details: 'The InterPlanetary File System (IPFS) provides content-addressed storage where each file receives a unique Content Identifier (CID). This ensures files are retrievable by their content hash, making them tamper-evident and distributed across the network.',
+    },
+    {
+      icon: Users,
+      title: 'Role-Based Access',
+      description: 'RBAC system with Issuer, Verifier, and Admin roles with granular permissions.',
+      details: 'Our Role-Based Access Control (RBAC) system defines three distinct roles: Issuers can create and manage certificates, Verifiers can validate certificates and proofs, and Admins have full system access including user management and certificate revocation.',
+    },
+    {
+      icon: Eye,
+      title: 'Selective Disclosure',
+      description: 'Reveal only required attributes (age>18, degree verified) without exposing full certificate.',
+      details: 'Selective disclosure allows certificate holders to choose which attributes to reveal during verification. For example, proving you have a valid degree without exposing your GPA, or confirming you are over 18 without revealing your exact birth date.',
+    },
+    {
+      icon: Zap,
+      title: 'Instant Verification',
+      description: 'Verify certificate authenticity in seconds using cryptographic proofs.',
+      details: 'Verification is performed by checking the cryptographic proof against the blockchain ledger. The process takes seconds and provides mathematical certainty about the certificate\'s authenticity without requiring access to the original document.',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -80,41 +133,11 @@ export default function Landing() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: FileCheck,
-                title: 'Tamper-Proof Certificates',
-                description: 'Certificates are hashed with SHA-256 and stored on an immutable blockchain ledger.',
-              },
-              {
-                icon: Lock,
-                title: 'zk-SNARK Proofs',
-                description: 'Generate zero-knowledge proofs for selective attribute disclosure without revealing sensitive data.',
-              },
-              {
-                icon: Shield,
-                title: 'Decentralized Storage',
-                description: 'IPFS integration for distributed, content-addressed file storage with unique CIDs.',
-              },
-              {
-                icon: Users,
-                title: 'Role-Based Access',
-                description: 'RBAC system with Issuer, Verifier, and Admin roles with granular permissions.',
-              },
-              {
-                icon: Eye,
-                title: 'Selective Disclosure',
-                description: 'Reveal only required attributes (age>18, degree verified) without exposing full certificate.',
-              },
-              {
-                icon: Zap,
-                title: 'Instant Verification',
-                description: 'Verify certificate authenticity in seconds using cryptographic proofs.',
-              },
-            ].map((feature, index) => (
-              <div
+            {features.map((feature, index) => (
+              <button
                 key={index}
-                className="p-6 rounded-xl bg-card border border-border card-hover animate-slide-in"
+                onClick={() => setSelectedFeature(feature)}
+                className="p-6 rounded-xl bg-card border border-border card-hover animate-slide-in text-left transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
                 style={{ animationDelay: `${index * 100}ms`, opacity: 0 }}
               >
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
@@ -126,11 +149,37 @@ export default function Landing() {
                 <p className="text-sm text-muted-foreground">
                   {feature.description}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
       </section>
+      
+      {/* Feature Detail Dialog */}
+      <Dialog open={!!selectedFeature} onOpenChange={(open) => !open && setSelectedFeature(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              {selectedFeature && (
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <selectedFeature.icon className="w-5 h-5 text-primary" />
+                </div>
+              )}
+              <DialogTitle>{selectedFeature?.title}</DialogTitle>
+            </div>
+            <DialogDescription className="text-left">
+              {selectedFeature?.details}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end pt-4">
+            <Link to="/login">
+              <Button variant="glow" size="sm">
+                Try It Now
+              </Button>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
       
       {/* Architecture Section */}
       <section id="architecture" className="py-20 px-4 bg-card/50">
