@@ -110,6 +110,8 @@ interface AuthContextType {
   getAllUsers: () => User[];
   suspendUser: (userId: string) => void;
   activateUser: (userId: string) => void;
+  createUser: (userData: { email: string; name: string; role: UserRole; organization?: string }) => { success: boolean; message: string; user?: User };
+  deleteUser: (userId: string) => { success: boolean; message: string };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -179,6 +181,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ));
   }, []);
   
+  /**
+   * Create a new user (Admin only)
+   */
+  const createUser = useCallback((userData: { email: string; name: string; role: UserRole; organization?: string }): { success: boolean; message: string; user?: User } => {
+    // Check if email already exists
+    const existingUser = users.find(u => u.email.toLowerCase() === userData.email.toLowerCase());
+    if (existingUser) {
+      return { success: false, message: 'User with this email already exists' };
+    }
+    
+    const newUser: User = {
+      id: `${userData.role}_${Date.now().toString(36)}`,
+      email: userData.email,
+      name: userData.name,
+      role: userData.role,
+      organization: userData.organization,
+      createdAt: new Date(),
+      lastLogin: new Date(),
+      isActive: true,
+    };
+    
+    setUsers(prev => [...prev, newUser]);
+    
+    return { success: true, message: 'User created successfully', user: newUser };
+  }, [users]);
+  
+  /**
+   * Delete a user (Admin only)
+   */
+  const deleteUser = useCallback((userId: string): { success: boolean; message: string } => {
+    const userToDelete = users.find(u => u.id === userId);
+    if (!userToDelete) {
+      return { success: false, message: 'User not found' };
+    }
+    
+    if (user?.id === userId) {
+      return { success: false, message: 'Cannot delete your own account' };
+    }
+    
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    return { success: true, message: 'User deleted successfully' };
+  }, [users, user]);
+  
   return (
     <AuthContext.Provider value={{
       user,
@@ -189,6 +234,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       getAllUsers,
       suspendUser,
       activateUser,
+      createUser,
+      deleteUser,
     }}>
       {children}
     </AuthContext.Provider>
