@@ -3,15 +3,33 @@
  * 
  * Admin functionality to:
  * - View all users
+ * - Create new users
  * - Suspend/activate users
- * - View user activity
+ * - Delete users
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { useAuth, User } from '@/lib/auth/AuthContext';
+import { useAuth, User, UserRole } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Users,
   User as UserIcon,
@@ -21,12 +39,21 @@ import {
   Clock,
   Mail,
   Building,
+  UserPlus,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
-  const { getAllUsers, suspendUser, activateUser, user: currentUser } = useAuth();
+  const { getAllUsers, suspendUser, activateUser, createUser, deleteUser, user: currentUser } = useAuth();
   const [, forceUpdate] = React.useState({});
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newUserData, setNewUserData] = useState({
+    name: '',
+    email: '',
+    role: 'issuer' as UserRole,
+    organization: '',
+  });
   
   const users = getAllUsers();
   
@@ -46,6 +73,51 @@ export default function UsersPage() {
     forceUpdate({});
   };
   
+  const handleCreateUser = () => {
+    if (!newUserData.name.trim() || !newUserData.email.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserData.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    
+    const result = createUser({
+      name: newUserData.name.trim(),
+      email: newUserData.email.trim(),
+      role: newUserData.role,
+      organization: newUserData.organization.trim() || undefined,
+    });
+    
+    if (result.success) {
+      toast.success(`User "${newUserData.name}" created successfully!`);
+      setNewUserData({ name: '', email: '', role: 'issuer', organization: '' });
+      setIsCreateDialogOpen(false);
+      forceUpdate({});
+    } else {
+      toast.error(result.message);
+    }
+  };
+  
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (userId === currentUser?.id) {
+      toast.error("You cannot delete your own account");
+      return;
+    }
+    
+    const result = deleteUser(userId);
+    if (result.success) {
+      toast.success(`User "${userName}" deleted`);
+      forceUpdate({});
+    } else {
+      toast.error(result.message);
+    }
+  };
+  
   const getRoleBadgeConfig = (role: string) => {
     switch (role) {
       case 'admin':
@@ -63,11 +135,103 @@ export default function UsersPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Manage Users</h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage user accounts
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Manage Users</h1>
+            <p className="text-muted-foreground mt-1">
+              View and manage user accounts
+            </p>
+          </div>
+          
+          {/* Add User Dialog */}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="glow">
+                <UserPlus className="w-4 h-4" />
+                Add User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New User</DialogTitle>
+                <DialogDescription>
+                  Add a new user to the ZK-Vault system. Default password will be "password".
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Full Name *</label>
+                  <Input
+                    placeholder="John Doe"
+                    value={newUserData.name}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Email Address *</label>
+                  <Input
+                    type="email"
+                    placeholder="john@example.com"
+                    value={newUserData.email}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Role *</label>
+                  <Select
+                    value={newUserData.role}
+                    onValueChange={(value: UserRole) => setNewUserData(prev => ({ ...prev, role: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="issuer">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-primary" />
+                          Issuer
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="verifier">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-success" />
+                          Verifier
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-destructive" />
+                          Admin
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Organization</label>
+                  <Input
+                    placeholder="Company or institution (optional)"
+                    value={newUserData.organization}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, organization: e.target.value }))}
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="glow" onClick={handleCreateUser}>
+                  <UserPlus className="w-4 h-4" />
+                  Create User
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
         
         {/* Stats */}
@@ -183,24 +347,34 @@ export default function UsersPage() {
                     
                     <div className="flex items-center gap-2">
                       {user.id !== currentUser?.id && (
-                        <Button
-                          variant={user.isActive ? "destructive" : "success"}
-                          size="sm"
-                          onClick={() => handleToggleStatus(user.id, user.isActive)}
-                          className={user.isActive ? "" : "bg-success text-success-foreground hover:bg-success/90"}
-                        >
-                          {user.isActive ? (
-                            <>
-                              <XCircle className="w-4 h-4" />
-                              Suspend
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4" />
-                              Activate
-                            </>
-                          )}
-                        </Button>
+                        <>
+                          <Button
+                            variant={user.isActive ? "destructive" : "success"}
+                            size="sm"
+                            onClick={() => handleToggleStatus(user.id, user.isActive)}
+                            className={user.isActive ? "" : "bg-success text-success-foreground hover:bg-success/90"}
+                          >
+                            {user.isActive ? (
+                              <>
+                                <XCircle className="w-4 h-4" />
+                                Suspend
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4" />
+                                Activate
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user.id, user.name)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
