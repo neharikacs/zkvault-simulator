@@ -42,7 +42,7 @@ interface VerificationResult {
     type: string;
     issuedBy: string;
     issuedTo: string;
-    issuedAt: Date;
+    issuedAt: string;
     blockNumber: number;
     transactionHash: string;
   };

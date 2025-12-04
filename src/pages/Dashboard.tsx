@@ -7,7 +7,7 @@
  * - Recent activity
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -25,10 +25,25 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Refresh data when component mounts or refreshKey changes
+  const refreshData = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
+  
+  // Auto-refresh on focus
+  useEffect(() => {
+    const handleFocus = () => refreshData();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshData]);
+  
   const stats = getBlockchainStats();
   const certificates = getAllCertificates();
   const verificationLogs = getVerificationLogs();
@@ -120,7 +135,13 @@ export default function Dashboard() {
         
         {/* Quick Actions */}
         <div className="p-6 rounded-xl bg-card border border-border">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Quick Actions</h2>
+            <Button variant="ghost" size="sm" onClick={refreshData}>
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-3">
             {(user?.role === 'issuer' || user?.role === 'admin') && (
               <Link to="/issue">
