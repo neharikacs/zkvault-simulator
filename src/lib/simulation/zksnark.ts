@@ -25,16 +25,33 @@ import { hashString } from './hash';
 
 /**
  * Attributes that can be selectively disclosed
+ * Extended to support all document types
  */
 export interface SelectableAttributes {
+  // Identity attributes
   ageOver18?: boolean;
   citizenship?: string;
+  identityVerified?: boolean;
+  
+  // Educational attributes
   degreeVerified?: boolean;
   graduationYear?: number;
   institutionAccredited?: boolean;
   gradeAboveThreshold?: boolean;
-  identityVerified?: boolean;
+  
+  // Professional attributes
   employmentVerified?: boolean;
+  licenseActive?: boolean;
+  certificationValid?: boolean;
+  
+  // Medical attributes
+  vaccinationVerified?: boolean;
+  healthCertificateValid?: boolean;
+  
+  // Generic document attributes
+  documentAuthentic?: boolean;
+  issuerVerified?: boolean;
+  notExpired?: boolean;
 }
 
 /**
@@ -105,18 +122,26 @@ export function generateZKProof(input: ProofInput): ZKProof {
   
   selectedDisclosures.forEach((attr) => {
     switch (attr) {
+      // Identity attributes
       case 'ageOver18':
-        // In reality, this would be computed from DOB in the circuit
         disclosedAttributes.ageOver18 = true;
         break;
       case 'citizenship':
-        disclosedAttributes.citizenship = certificateData.attributes.citizenship as string || 'verified';
+        disclosedAttributes.citizenship = certificateData.attributes.citizenship as string || 
+                                          certificateData.attributes.nationality as string || 'verified';
         break;
+      case 'identityVerified':
+        disclosedAttributes.identityVerified = true;
+        break;
+        
+      // Educational attributes
       case 'degreeVerified':
         disclosedAttributes.degreeVerified = true;
         break;
       case 'graduationYear':
-        disclosedAttributes.graduationYear = certificateData.attributes.graduationYear as number || 2024;
+        disclosedAttributes.graduationYear = certificateData.attributes.graduationYear as number || 
+                                              new Date(certificateData.attributes.graduationDate as string).getFullYear() ||
+                                              2024;
         break;
       case 'institutionAccredited':
         disclosedAttributes.institutionAccredited = true;
@@ -124,11 +149,35 @@ export function generateZKProof(input: ProofInput): ZKProof {
       case 'gradeAboveThreshold':
         disclosedAttributes.gradeAboveThreshold = true;
         break;
-      case 'identityVerified':
-        disclosedAttributes.identityVerified = true;
-        break;
+        
+      // Professional attributes
       case 'employmentVerified':
         disclosedAttributes.employmentVerified = true;
+        break;
+      case 'licenseActive':
+        disclosedAttributes.licenseActive = true;
+        break;
+      case 'certificationValid':
+        disclosedAttributes.certificationValid = true;
+        break;
+        
+      // Medical attributes
+      case 'vaccinationVerified':
+        disclosedAttributes.vaccinationVerified = true;
+        break;
+      case 'healthCertificateValid':
+        disclosedAttributes.healthCertificateValid = true;
+        break;
+        
+      // Generic attributes
+      case 'documentAuthentic':
+        disclosedAttributes.documentAuthentic = true;
+        break;
+      case 'issuerVerified':
+        disclosedAttributes.issuerVerified = true;
+        break;
+      case 'notExpired':
+        disclosedAttributes.notExpired = true;
         break;
     }
   });
@@ -246,14 +295,30 @@ export function verifyProof(
 export function getDisclosureDescription(attributes: SelectableAttributes): string[] {
   const descriptions: string[] = [];
   
+  // Identity
   if (attributes.ageOver18) descriptions.push('Age is over 18');
   if (attributes.citizenship) descriptions.push(`Citizenship: ${attributes.citizenship}`);
-  if (attributes.degreeVerified) descriptions.push('Degree has been verified');
+  if (attributes.identityVerified) descriptions.push('Identity has been verified');
+  
+  // Educational
+  if (attributes.degreeVerified) descriptions.push('Degree/diploma has been verified');
   if (attributes.graduationYear) descriptions.push(`Graduation year: ${attributes.graduationYear}`);
   if (attributes.institutionAccredited) descriptions.push('Institution is accredited');
   if (attributes.gradeAboveThreshold) descriptions.push('Grade is above threshold');
-  if (attributes.identityVerified) descriptions.push('Identity has been verified');
+  
+  // Professional
   if (attributes.employmentVerified) descriptions.push('Employment has been verified');
+  if (attributes.licenseActive) descriptions.push('Professional license is active');
+  if (attributes.certificationValid) descriptions.push('Certification is valid');
+  
+  // Medical
+  if (attributes.vaccinationVerified) descriptions.push('Vaccination status verified');
+  if (attributes.healthCertificateValid) descriptions.push('Health certificate is valid');
+  
+  // Generic
+  if (attributes.documentAuthentic) descriptions.push('Document is authentic');
+  if (attributes.issuerVerified) descriptions.push('Issuer has been verified');
+  if (attributes.notExpired) descriptions.push('Document has not expired');
   
   return descriptions;
 }
