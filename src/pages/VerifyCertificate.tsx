@@ -4,16 +4,16 @@
  * Verifier workflow:
  * 1. Input certificate hash
  * 2. Input zk-SNARK proof (JSON)
- * 3. Submit for verification
+ * 3. Submit for verification (on-chain + ZK proof)
  * 4. Display verification result with visual chain
  */
 
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { verifyCertificate, getCertificateByHash } from '@/lib/simulation/blockchain';
-import { verifyProof, getDisclosureDescription, ZKProof } from '@/lib/simulation/zksnark';
-import { hashString } from '@/lib/simulation/hash';
+import { verifyCertificateOnChain, getCertificateByHash } from '@/lib/blockchain';
+import { verifyProof, getDisclosureDescriptions, DisclosedAttribute } from '@/lib/zksnark';
+import { ZKProof, deserializeProof } from '@/lib/zksnark/prover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -30,23 +30,31 @@ import {
   FileText,
   Clock,
   User,
+  Blocks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface VerificationResult {
   valid: boolean;
-  status: 'valid' | 'invalid' | 'revoked' | 'not_found';
+  status: 'valid' | 'invalid' | 'revoked' | 'not_found' | 'suspended';
   message: string;
   certificate?: {
     id: string;
     type: string;
+    category: string;
     issuedBy: string;
     issuedTo: string;
     issuedAt: string;
     blockNumber: number;
     transactionHash: string;
   };
-  disclosedAttributes?: string[];
+  proofDetails?: {
+    valid: boolean;
+    commitmentValid: boolean;
+    nullifierUnique: boolean;
+    disclosuresVerified: boolean;
+  };
+  disclosedAttributes?: DisclosedAttribute[];
 }
 
 export default function VerifyCertificate() {
@@ -65,18 +73,13 @@ export default function VerifyCertificate() {
     setIsVerifying(true);
     setResult(null);
     
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 1500));
-    
     try {
       // Parse proof if provided
       let proof: ZKProof | null = null;
-      let proofHash = '';
       
       if (proofJson.trim()) {
         try {
-          proof = JSON.parse(proofJson);
-          proofHash = hashString(proofJson);
+          proof = deserializeProof(proofJson);
         } catch {
           toast.error('Invalid proof JSON format');
           setIsVerifying(false);
@@ -84,10 +87,10 @@ export default function VerifyCertificate() {
         }
       }
       
-      // Verify against blockchain
-      const blockchainResult = verifyCertificate(
+      // Verify against blockchain smart contract
+      const blockchainResult = await verifyCertificateOnChain(
         certificateHash.trim(),
-        proofHash,
+        proofJson.trim(),
         user?.id || 'anonymous'
       );
       
@@ -95,11 +98,15 @@ export default function VerifyCertificate() {
       const cert = getCertificateByHash(certificateHash.trim());
       
       // Verify zk-SNARK proof if provided
-      let disclosedAttributes: string[] = [];
+      let disclosedAttributes: DisclosedAttribute[] = [];
+      let proofDetails = undefined;
+      
       if (proof && cert) {
-        const zkResult = verifyProof(certificateHash.trim(), proof);
-        if (zkResult.valid) {
-          disclosedAttributes = getDisclosureDescription(proof.publicSignals.disclosedAttributes);
+        const zkResult = await verifyProof(proof, certificateHash.trim(), false);
+        proofDetails = zkResult.details;
+        
+        if (zkResult.valid && zkResult.disclosedAttributes) {
+          disclosedAttributes = zkResult.disclosedAttributes;
         }
       }
       
@@ -107,24 +114,27 @@ export default function VerifyCertificate() {
         valid: blockchainResult.valid,
         status: blockchainResult.valid ? 'valid' : 
                 cert?.status === 'revoked' ? 'revoked' :
+                cert?.status === 'suspended' ? 'suspended' :
                 cert ? 'invalid' : 'not_found',
         message: blockchainResult.message,
         certificate: cert ? {
           id: cert.id,
-          type: cert.certificateType,
+          type: cert.documentType,
+          category: cert.documentCategory,
           issuedBy: cert.issuer,
-          issuedTo: cert.issuedTo,
-          issuedAt: cert.timestamp,
+          issuedTo: cert.holder,
+          issuedAt: cert.createdAt,
           blockNumber: cert.blockNumber,
           transactionHash: cert.transactionHash,
         } : undefined,
+        proofDetails,
         disclosedAttributes,
       };
       
       setResult(verificationResult);
       
       if (verificationResult.valid) {
-        toast.success('Certificate verified successfully!');
+        toast.success('Certificate verified successfully on blockchain!');
       } else {
         toast.error(verificationResult.message);
       }
@@ -154,6 +164,14 @@ export default function VerifyCertificate() {
           bg: 'bg-destructive/10',
           border: 'border-destructive/30',
           label: 'Revoked Certificate',
+        };
+      case 'suspended':
+        return {
+          icon: AlertTriangle,
+          color: 'text-warning',
+          bg: 'bg-warning/10',
+          border: 'border-warning/30',
+          label: 'Suspended Certificate',
         };
       case 'invalid':
         return {
@@ -345,12 +363,49 @@ export default function VerifyCertificate() {
                     
                     <div className="p-4 rounded-lg bg-secondary/50 space-y-1">
                       <div className="flex items-center gap-2 text-muted-foreground">
+                        <Blocks className="w-4 h-4" />
+                        <span className="text-xs">Category</span>
+                      </div>
+                      <p className="font-medium text-foreground capitalize">{result.certificate.category}</p>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-secondary/50 space-y-1">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Database className="w-4 h-4" />
                         <span className="text-xs">Block Number</span>
                       </div>
                       <p className="font-medium text-foreground font-mono">
                         #{result.certificate.blockNumber}
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ZK Proof Verification Details */}
+                {result.proofDetails && (
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">
+                        ZK-SNARK Proof Verification (Groth16)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        { label: 'Proof Valid', valid: result.proofDetails.commitmentValid },
+                        { label: 'Commitment Valid', valid: result.proofDetails.commitmentValid },
+                        { label: 'Nullifier Unique', valid: result.proofDetails.nullifierUnique },
+                        { label: 'Disclosures Verified', valid: result.proofDetails.disclosuresVerified },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          {item.valid ? (
+                            <CheckCircle className="w-3 h-3 text-success" />
+                          ) : (
+                            <XCircle className="w-3 h-3 text-destructive" />
+                          )}
+                          <span className="text-muted-foreground">{item.label}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -370,7 +425,7 @@ export default function VerifyCertificate() {
                           key={i}
                           className="px-3 py-1 rounded-full bg-success/10 text-success text-xs font-medium"
                         >
-                          ✓ {attr}
+                          ✓ {attr.label}: {typeof attr.value === 'boolean' ? 'Verified' : attr.value}
                         </span>
                       ))}
                     </div>

@@ -7,8 +7,8 @@
  * 3. Enter document-specific metadata
  * 4. Store in IPFS (Pinata) or fallback to localStorage
  * 5. Generate SHA-256 hash
- * 6. Generate zk-SNARK proof with selective disclosure
- * 7. Store in simulated blockchain
+ * 6. Generate real zk-SNARK proof with selective disclosure
+ * 7. Store in blockchain with smart contract
  * 8. Display all credentials for holder
  */
 
@@ -17,8 +17,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { storeFile } from '@/lib/simulation/ipfs';
 import { hashFile } from '@/lib/simulation/hash';
-import { generateZKProof, SelectableAttributes } from '@/lib/simulation/zksnark';
-import { storeCertificate } from '@/lib/simulation/blockchain';
+import { generateProof, ZKProof } from '@/lib/zksnark';
+import { issueCertificate, OnChainCertificate } from '@/lib/blockchain';
 import { pinFileToIPFS, isPinataConfigured, getIPFSUrl } from '@/lib/services/pinataService';
 import { PinataConfigModal } from '@/components/PinataConfigModal';
 import { 
@@ -46,6 +46,7 @@ import {
   Shield,
   Settings,
   ArrowLeft,
+  Blocks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,9 +55,10 @@ type Step = 'select-type' | 'upload' | 'metadata' | 'processing' | 'complete';
 interface IssuanceResult {
   cid: string;
   hash: string;
-  proof: string;
+  proof: ZKProof;
   transactionHash: string;
   blockNumber: number;
+  certificateId: string;
   ipfsUrl?: string;
 }
 
@@ -126,7 +128,6 @@ export default function IssueCertificate() {
 
       // Step 1: Store in IPFS (Pinata or localStorage fallback)
       setProcessingStep('Storing in IPFS...');
-      await new Promise(r => setTimeout(r, 800));
       
       if (pinataConnected) {
         const pinataResult = await pinFileToIPFS(file, {
@@ -152,53 +153,35 @@ export default function IssueCertificate() {
       
       // Step 2: Generate SHA-256 hash
       setProcessingStep('Generating SHA-256 hash...');
-      await new Promise(r => setTimeout(r, 600));
       const fileHash = await hashFile(file);
       
-      // Step 3: Generate zk-SNARK proof
-      setProcessingStep('Generating zk-SNARK proof...');
-      await new Promise(r => setTimeout(r, 1000));
+      // Step 3: Generate real zk-SNARK proof
+      setProcessingStep('Generating zk-SNARK proof (Groth16)...');
       
-      // Map selected disclosures to SelectableAttributes
-      const disclosureMap: Record<string, keyof SelectableAttributes> = {
-        'ageOver18': 'ageOver18',
-        'citizenship': 'citizenship',
-        'degreeVerified': 'degreeVerified',
-        'graduationYear': 'graduationYear',
-        'institutionAccredited': 'institutionAccredited',
-        'gradeAboveThreshold': 'gradeAboveThreshold',
-        'identityVerified': 'identityVerified',
-        'employmentVerified': 'employmentVerified',
-      };
-      
-      const mappedDisclosures = selectedDisclosures
-        .filter(d => disclosureMap[d])
-        .map(d => disclosureMap[d]);
-
-      const proof = generateZKProof({
-        certificateHash: fileHash,
-        certificateData: {
-          holderName,
-          certificateType: selectedDocType.name,
-          issuer: user.name,
-          attributes: formData,
-        },
-        selectedDisclosures: mappedDisclosures,
+      const proof = await generateProof({
+        documentHash: fileHash,
+        documentType: selectedDocType.id,
+        documentCategory: selectedDocType.category,
+        documentData: formData,
+        holderName,
+        holderDOB: formData.dateOfBirth as string,
+        selectedDisclosures,
       });
       
-      // Step 4: Store in blockchain
-      setProcessingStep('Recording on blockchain...');
-      await new Promise(r => setTimeout(r, 800));
-      const blockchainResult = storeCertificate({
-        hash: fileHash,
-        cid,
+      // Step 4: Store in blockchain with smart contract
+      setProcessingStep('Executing smart contract...');
+      
+      const blockchainResult = await issueCertificate({
+        documentHash: fileHash,
+        ipfsCid: cid,
         proof,
         issuer: user.id,
-        issuedTo: holderEmail,
-        certificateType: selectedDocType.name,
+        holder: holderEmail,
+        documentType: selectedDocType.id,
+        documentCategory: selectedDocType.category,
         metadata: {
           holderName,
-          documentTypeId: selectedDocType.id,
+          documentTypeName: selectedDocType.name,
           category: selectedDocType.category,
           ...formData,
         },
@@ -207,14 +190,15 @@ export default function IssueCertificate() {
       setResult({
         cid,
         hash: fileHash,
-        proof: JSON.stringify(proof),
-        transactionHash: blockchainResult.transactionHash,
-        blockNumber: blockchainResult.record.blockNumber,
+        proof,
+        transactionHash: blockchainResult.transaction.hash,
+        blockNumber: blockchainResult.block.number,
+        certificateId: blockchainResult.certificate.id,
         ipfsUrl,
       });
       
       setStep('complete');
-      toast.success('Certificate issued successfully!');
+      toast.success('Certificate issued successfully on blockchain!');
       
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to issue certificate');
@@ -234,13 +218,25 @@ export default function IssueCertificate() {
     if (!result || !selectedDocType) return;
     
     const credentials = {
+      certificateId: result.certificateId,
       cid: result.cid,
       ipfsUrl: result.ipfsUrl,
       hash: result.hash,
-      proof: JSON.parse(result.proof),
+      proof: {
+        ...result.proof,
+        metadata: {
+          ...result.proof.metadata,
+          disclosures: result.proof.metadata.disclosures.map(d => ({
+            key: d.key,
+            label: d.label,
+            value: d.value,
+          })),
+        },
+      },
       blockchain: {
         transactionHash: result.transactionHash,
         blockNumber: result.blockNumber,
+        network: 'ZK-Vault Chain (Simulation)',
       },
       metadata: {
         holderName,
@@ -695,21 +691,56 @@ export default function IssueCertificate() {
                   </div>
                   <p className="text-xs text-muted-foreground">Block #{result.blockNumber}</p>
                 </div>
+
+                {/* Certificate ID */}
+                <div className="p-4 rounded-lg bg-secondary/50 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Blocks className="w-4 h-4 text-accent-foreground" />
+                    <span className="text-sm font-medium text-foreground">Certificate ID</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs font-mono bg-background p-2 rounded overflow-x-auto">
+                      {result.certificateId}
+                    </code>
+                    <Button variant="ghost" size="icon" onClick={() => copyToClipboard(result.certificateId, 'Certificate ID')}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
                 
                 {/* Proof */}
                 <div className="p-4 rounded-lg bg-secondary/50 space-y-2">
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-success" />
-                    <span className="text-sm font-medium text-foreground">zk-SNARK Proof</span>
+                    <span className="text-sm font-medium text-foreground">zk-SNARK Proof (Groth16)</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs font-mono bg-background p-2 rounded max-h-20 overflow-y-auto">
-                      {result.proof.substring(0, 200)}...
-                    </code>
-                    <Button variant="ghost" size="icon" onClick={() => copyToClipboard(result.proof, 'Proof')}>
-                      <Copy className="w-4 h-4" />
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">
+                      Protocol: {result.proof.proof.protocol} | Curve: {result.proof.proof.curve}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs font-mono bg-background p-2 rounded max-h-20 overflow-y-auto">
+                        {JSON.stringify(result.proof.proof, null, 2).substring(0, 200)}...
+                      </code>
+                      <Button variant="ghost" size="icon" onClick={() => copyToClipboard(JSON.stringify(result.proof), 'Proof')}>
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+                  
+                  {/* Disclosed Attributes */}
+                  {result.proof.metadata.disclosures.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <p className="text-xs font-medium text-foreground mb-2">Disclosed Attributes:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {result.proof.metadata.disclosures.map((d, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded-full bg-success/10 text-success">
+                            {d.label}: {typeof d.value === 'boolean' ? '✓' : d.value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               
