@@ -1,0 +1,4 @@
+project_id = "wblktygudsstcthpjotn"
+
+[functions.pinata-ipfs]
+verify_jwt = false

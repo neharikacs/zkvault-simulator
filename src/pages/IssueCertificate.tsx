@@ -5,10 +5,10 @@
  * 1. Select document type
  * 2. Upload certificate file
  * 3. Enter document-specific metadata
- * 4. Store in IPFS (Pinata) or fallback to localStorage
+ * 4. Store in IPFS (Pinata via edge function)
  * 5. Generate SHA-256 hash
  * 6. Generate real zk-SNARK proof with selective disclosure
- * 7. Store in blockchain with smart contract
+ * 7. Store on Ethereum Sepolia blockchain (zero gas testnet)
  * 8. Display all credentials for holder
  */
 
@@ -19,8 +19,14 @@ import { storeFile } from '@/lib/simulation/ipfs';
 import { hashFile } from '@/lib/simulation/hash';
 import { generateProof, ZKProof } from '@/lib/zksnark';
 import { issueCertificate, OnChainCertificate } from '@/lib/blockchain';
-import { pinFileToIPFS, isPinataConfigured, getIPFSUrl } from '@/lib/services/pinataService';
-import { PinataConfigModal } from '@/components/PinataConfigModal';
+import { pinFileToIPFS, isIPFSAvailable, getIPFSUrl } from '@/lib/services/ipfsService';
+import { WalletConnect } from '@/components/WalletConnect';
+import { 
+  isMetaMaskInstalled,
+  issueCertificateOnEthereum,
+  type WalletState,
+} from '@/lib/ethereum/provider';
+import { SEPOLIA_CONFIG } from '@/lib/ethereum/contracts';
 import { 
   DOCUMENT_TYPES, 
   getDocumentTypeById, 
@@ -44,9 +50,10 @@ import {
   Loader2,
   Cloud,
   Shield,
-  Settings,
   ArrowLeft,
   Blocks,
+  Wallet,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +67,9 @@ interface IssuanceResult {
   blockNumber: number;
   certificateId: string;
   ipfsUrl?: string;
+  ethereumTxHash?: string;
+  ethereumExplorerUrl?: string;
+  network: 'ethereum' | 'simulation';
 }
 
 export default function IssueCertificate() {
@@ -74,12 +84,18 @@ export default function IssueCertificate() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const [result, setResult] = useState<IssuanceResult | null>(null);
-  const [showPinataConfig, setShowPinataConfig] = useState(false);
-  const [pinataConnected, setPinataConnected] = useState(false);
+  const [ipfsConnected, setIpfsConnected] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'all'>('all');
+  const [wallet, setWallet] = useState<WalletState>({
+    connected: false,
+    address: null,
+    chainId: null,
+    balance: null,
+  });
 
   useEffect(() => {
-    setPinataConnected(isPinataConfigured());
+    // Check IPFS availability on mount
+    isIPFSAvailable().then(setIpfsConnected);
   }, []);
 
   const handleDocTypeSelect = (docType: DocumentType) => {
@@ -129,7 +145,7 @@ export default function IssueCertificate() {
       // Step 1: Store in IPFS (Pinata or localStorage fallback)
       setProcessingStep('Storing in IPFS...');
       
-      if (pinataConnected) {
+      if (ipfsConnected) {
         const pinataResult = await pinFileToIPFS(file, {
           name: `${selectedDocType.name}_${holderName}`,
           keyvalues: {
@@ -195,6 +211,7 @@ export default function IssueCertificate() {
         blockNumber: blockchainResult.block.number,
         certificateId: blockchainResult.certificate.id,
         ipfsUrl,
+        network: 'simulation',
       });
       
       setStep('complete');
@@ -288,16 +305,16 @@ export default function IssueCertificate() {
               Upload a document, generate proofs, and store on the blockchain
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowPinataConfig(true)}
-            className="gap-2"
-          >
-            <Settings className="w-4 h-4" />
-            <Cloud className={cn("w-4 h-4", pinataConnected ? "text-success" : "text-muted-foreground")} />
-            {pinataConnected ? 'IPFS Connected' : 'Configure IPFS'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm",
+              ipfsConnected ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
+            )}>
+              <Cloud className="w-4 h-4" />
+              {ipfsConnected ? 'IPFS Connected' : 'IPFS Checking...'}
+            </div>
+            <WalletConnect onWalletChange={setWallet} />
+          </div>
         </div>
         
         {/* Progress Steps */}
@@ -598,7 +615,7 @@ export default function IssueCertificate() {
               
               <div className="mt-8 space-y-3 text-left max-w-md mx-auto">
                 {[
-                  { label: `Storing in IPFS${pinataConnected ? ' (Pinata)' : ''}`, icon: Cloud, done: processingStep !== 'Storing in IPFS...' },
+                  { label: `Storing in IPFS${ipfsConnected ? ' (Pinata)' : ''}`, icon: Cloud, done: processingStep !== 'Storing in IPFS...' },
                   { label: 'Generating SHA-256 hash', icon: Hash, done: processingStep !== 'Generating SHA-256 hash...' && processingStep !== 'Storing in IPFS...' },
                   { label: 'Creating zk-SNARK proof', icon: Key, done: processingStep !== 'Generating zk-SNARK proof...' && !['Storing in IPFS...', 'Generating SHA-256 hash...'].includes(processingStep) },
                   { label: 'Recording on blockchain', icon: Database, done: processingStep === '' },
@@ -758,11 +775,6 @@ export default function IssueCertificate() {
         </div>
       </div>
 
-      <PinataConfigModal
-        open={showPinataConfig}
-        onOpenChange={setShowPinataConfig}
-        onConfigured={() => setPinataConnected(true)}
-      />
     </DashboardLayout>
   );
 }
