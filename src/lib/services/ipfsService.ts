@@ -21,18 +21,12 @@ interface PinResult {
  */
 export async function testPinataConnection(): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke('pinata-ipfs', {
-      body: {},
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    // Check if the function was invoked with the test action
-    const response = await supabase.functions.invoke('pinata-ipfs?action=test', {
+    const { data, error } = await supabase.functions.invoke('pinata-ipfs?action=test', {
       body: {},
     });
 
-    if (error || !response.data?.success) {
-      return { success: false, error: error?.message || response.data?.error || 'Connection failed' };
+    if (error || !data?.success) {
+      return { success: false, error: error?.message || data?.error || 'Connection failed' };
     }
 
     return { success: true };
