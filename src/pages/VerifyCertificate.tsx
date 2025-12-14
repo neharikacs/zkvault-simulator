@@ -12,6 +12,8 @@ import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { verifyCertificateOnChain, getCertificateByHash } from '@/lib/blockchain';
+import { verifyCertificateOnEthereum, isMetaMaskInstalled, callViewFunction } from '@/lib/ethereum/provider';
+import { SEPOLIA_CONFIG, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
 import { verifyProof, getDisclosureDescriptions, DisclosedAttribute } from '@/lib/zksnark';
 import { ZKProof, deserializeProof } from '@/lib/zksnark/prover';
 import { Button } from '@/components/ui/button';
@@ -31,6 +33,8 @@ import {
   Clock,
   User,
   Blocks,
+  ExternalLink,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +59,15 @@ interface VerificationResult {
     disclosuresVerified: boolean;
   };
   disclosedAttributes?: DisclosedAttribute[];
+  blockchain?: {
+    verified: boolean;
+    network: string;
+    contractAddress: string;
+    explorerUrl: string;
+    issuer?: string;
+    holder?: string;
+    status?: string;
+  };
 }
 
 export default function VerifyCertificate() {
@@ -63,6 +76,7 @@ export default function VerifyCertificate() {
   const [proofJson, setProofJson] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
+  const [verificationStep, setVerificationStep] = useState(0);
   
   const handleVerify = async () => {
     if (!certificateHash.trim()) {
@@ -72,6 +86,7 @@ export default function VerifyCertificate() {
     
     setIsVerifying(true);
     setResult(null);
+    setVerificationStep(1);
     
     try {
       // Parse proof if provided
@@ -87,15 +102,51 @@ export default function VerifyCertificate() {
         }
       }
       
-      // Verify against blockchain smart contract
+      setVerificationStep(2);
+      
+      // Verify against simulation blockchain first
       const blockchainResult = await verifyCertificateOnChain(
         certificateHash.trim(),
         proofJson.trim(),
         user?.id || 'anonymous'
       );
       
-      // Get certificate details
+      // Get certificate details from local store
       const cert = getCertificateByHash(certificateHash.trim());
+      
+      setVerificationStep(3);
+      
+      // Verify on Ethereum Sepolia if MetaMask is available
+      let ethereumVerification = null;
+      if (isMetaMaskInstalled()) {
+        try {
+          const ethResult = await verifyCertificateOnEthereum(certificateHash.trim());
+          ethereumVerification = {
+            verified: ethResult.isValid,
+            network: 'Sepolia Testnet',
+            contractAddress: DEPLOYED_CONTRACT_ADDRESS,
+            explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
+            issuer: ethResult.issuer,
+            holder: ethResult.holder,
+            status: ethResult.status === 0 ? 'Pending' : 
+                   ethResult.status === 1 ? 'Active' : 
+                   ethResult.status === 2 ? 'Revoked' : 
+                   ethResult.status === 3 ? 'Suspended' : 'Unknown',
+          };
+        } catch (ethError) {
+          console.log('Ethereum verification skipped:', ethError);
+          // Fallback to simulation-only verification
+          ethereumVerification = {
+            verified: false,
+            network: 'Sepolia Testnet',
+            contractAddress: DEPLOYED_CONTRACT_ADDRESS,
+            explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
+            status: 'Not found on chain',
+          };
+        }
+      }
+      
+      setVerificationStep(4);
       
       // Verify zk-SNARK proof if provided
       let disclosedAttributes: DisclosedAttribute[] = [];
@@ -110,13 +161,19 @@ export default function VerifyCertificate() {
         }
       }
       
+      setVerificationStep(5);
+      
+      const isValid = blockchainResult.valid || (ethereumVerification?.verified ?? false);
+      
       const verificationResult: VerificationResult = {
-        valid: blockchainResult.valid,
-        status: blockchainResult.valid ? 'valid' : 
+        valid: isValid,
+        status: isValid ? 'valid' : 
                 cert?.status === 'revoked' ? 'revoked' :
                 cert?.status === 'suspended' ? 'suspended' :
                 cert ? 'invalid' : 'not_found',
-        message: blockchainResult.message,
+        message: isValid 
+          ? 'Certificate verified successfully on blockchain!' 
+          : blockchainResult.message,
         certificate: cert ? {
           id: cert.id,
           type: cert.documentType,
@@ -129,6 +186,7 @@ export default function VerifyCertificate() {
         } : undefined,
         proofDetails,
         disclosedAttributes,
+        blockchain: ethereumVerification || undefined,
       };
       
       setResult(verificationResult);
@@ -144,6 +202,7 @@ export default function VerifyCertificate() {
       console.error(error);
     } finally {
       setIsVerifying(false);
+      setVerificationStep(0);
     }
   };
   
@@ -198,6 +257,15 @@ export default function VerifyCertificate() {
     setResult(null);
   };
   
+  const steps = [
+    { label: 'Input', icon: FileText },
+    { label: 'Hash Check', icon: Hash },
+    { label: 'Simulation', icon: Database },
+    { label: 'Ethereum', icon: Wallet },
+    { label: 'ZK Verify', icon: Shield },
+    { label: 'Result', icon: result?.valid ? CheckCircle : XCircle },
+  ];
+  
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8">
@@ -205,8 +273,34 @@ export default function VerifyCertificate() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Verify Certificate</h1>
           <p className="text-muted-foreground mt-1">
-            Enter certificate hash and proof to verify authenticity
+            Enter certificate hash and proof to verify authenticity on Ethereum Sepolia
           </p>
+        </div>
+        
+        {/* MetaMask Status */}
+        <div className={cn(
+          "p-4 rounded-lg border flex items-center gap-3",
+          isMetaMaskInstalled() 
+            ? "bg-success/10 border-success/30" 
+            : "bg-warning/10 border-warning/30"
+        )}>
+          <Wallet className={cn(
+            "w-5 h-5",
+            isMetaMaskInstalled() ? "text-success" : "text-warning"
+          )} />
+          <div>
+            <p className={cn(
+              "text-sm font-medium",
+              isMetaMaskInstalled() ? "text-success" : "text-warning"
+            )}>
+              {isMetaMaskInstalled() 
+                ? "MetaMask detected - Blockchain verification enabled" 
+                : "MetaMask not detected - Using simulation only"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Network: Sepolia Testnet • Contract: {DEPLOYED_CONTRACT_ADDRESS.slice(0, 10)}...
+            </p>
+          </div>
         </div>
         
         {/* Verification Form */}
@@ -254,7 +348,7 @@ export default function VerifyCertificate() {
             {isVerifying ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Verifying...
+                Verifying on Blockchain...
               </>
             ) : (
               <>
@@ -272,38 +366,38 @@ export default function VerifyCertificate() {
               Verification Chain
             </h3>
             
-            <div className="flex items-center justify-between mb-8">
-              {[
-                { label: 'Input', icon: FileText, active: true },
-                { label: 'Hash Check', icon: Hash, active: !isVerifying },
-                { label: 'Blockchain', icon: Database, active: !isVerifying && result !== null },
-                { label: 'ZK Verify', icon: Shield, active: !isVerifying && result !== null },
-                { label: 'Result', icon: result?.valid ? CheckCircle : XCircle, active: !isVerifying && result !== null },
-              ].map((step, i, arr) => (
+            <div className="flex items-center justify-between mb-8 overflow-x-auto">
+              {steps.map((step, i, arr) => (
                 <React.Fragment key={step.label}>
-                  <div className="flex flex-col items-center">
+                  <div className="flex flex-col items-center min-w-[60px]">
                     <div className={cn(
                       "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
-                      step.active
-                        ? i === arr.length - 1 && result
+                      isVerifying && verificationStep === i + 1
+                        ? "bg-primary/20 text-primary animate-pulse"
+                        : isVerifying && verificationStep > i + 1
+                        ? "bg-success/20 text-success"
+                        : !isVerifying && result
+                        ? i === arr.length - 1
                           ? result.valid
                             ? "bg-success/20 text-success"
                             : "bg-destructive/20 text-destructive"
-                          : "bg-primary/20 text-primary"
+                          : "bg-success/20 text-success"
                         : "bg-secondary text-muted-foreground"
                     )}>
-                      {isVerifying && i > 0 && !step.active ? (
+                      {isVerifying && verificationStep === i + 1 ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <step.icon className="w-5 h-5" />
                       )}
                     </div>
-                    <span className="text-xs mt-2 text-muted-foreground">{step.label}</span>
+                    <span className="text-xs mt-2 text-muted-foreground text-center">{step.label}</span>
                   </div>
                   {i < arr.length - 1 && (
                     <ArrowRight className={cn(
-                      "w-5 h-5",
-                      step.active && arr[i + 1].active ? "text-primary" : "text-muted"
+                      "w-5 h-5 flex-shrink-0",
+                      (!isVerifying && result) || (isVerifying && verificationStep > i + 1)
+                        ? "text-success" 
+                        : "text-muted"
                     )} />
                   )}
                 </React.Fragment>
@@ -331,6 +425,59 @@ export default function VerifyCertificate() {
                     </div>
                   </div>
                 </div>
+                
+                {/* Ethereum Blockchain Verification */}
+                {result.blockchain && (
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-foreground">
+                          Ethereum Blockchain Verification
+                        </span>
+                      </div>
+                      <a
+                        href={result.blockchain.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        View on Etherscan <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Network</p>
+                        <p className="font-medium text-foreground">{result.blockchain.network}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <p className={cn(
+                          "font-medium",
+                          result.blockchain.verified ? "text-success" : "text-warning"
+                        )}>
+                          {result.blockchain.verified ? 'Verified' : result.blockchain.status}
+                        </p>
+                      </div>
+                      {result.blockchain.issuer && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Issuer</p>
+                          <p className="font-mono text-xs text-foreground truncate">
+                            {result.blockchain.issuer.slice(0, 10)}...
+                          </p>
+                        </div>
+                      )}
+                      {result.blockchain.holder && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Holder</p>
+                          <p className="font-mono text-xs text-foreground truncate">
+                            {result.blockchain.holder.slice(0, 10)}...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Certificate Details */}
                 {result.certificate && (
