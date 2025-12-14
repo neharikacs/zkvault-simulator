@@ -16,6 +16,7 @@ import RevokeCertificate from "./pages/RevokeCertificate";
 import UsersPage from "./pages/Users";
 import ActivityPage from "./pages/Activity";
 import Results from "./pages/Results";
+import WalletSettings from "./pages/WalletSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UsersPage /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute allowedRoles={['admin']}><ActivityPage /></ProtectedRoute>} />
       <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+      <Route path="/wallet-settings" element={<ProtectedRoute allowedRoles={['issuer', 'admin']}><WalletSettings /></ProtectedRoute>} />
       
       <Route path="*" element={<NotFound />} />
     </Routes>

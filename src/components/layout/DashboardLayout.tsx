@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
   { label: 'Manage Users', path: '/users', icon: Users, roles: ['admin'] },
   { label: 'System Activity', path: '/activity', icon: Activity, roles: ['admin'] },
   { label: 'Results & Charts', path: '/results', icon: BarChart3, roles: ['issuer', 'verifier', 'admin'] },
+  { label: 'Wallet Settings', path: '/wallet-settings', icon: Settings, roles: ['issuer', 'admin'] },
 ];
 
 interface DashboardLayoutProps {

@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { storeFile } from '@/lib/simulation/ipfs';
@@ -20,7 +21,7 @@ import { hashFile } from '@/lib/simulation/hash';
 import { generateProof, ZKProof } from '@/lib/zksnark';
 import { issueCertificate, OnChainCertificate } from '@/lib/blockchain';
 import { pinFileToIPFS, isIPFSAvailable, getIPFSUrl } from '@/lib/services/ipfsService';
-import { WalletConnect } from '@/components/WalletConnect';
+import { getWalletSettings, isValidEthereumAddress } from '@/lib/services/walletSettingsService';
 import { 
   isMetaMaskInstalled,
   issueCertificateOnEthereum,
@@ -54,8 +55,10 @@ import {
   Blocks,
   Wallet,
   ExternalLink,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type Step = 'select-type' | 'upload' | 'metadata' | 'processing' | 'complete';
 
@@ -86,16 +89,15 @@ export default function IssueCertificate() {
   const [result, setResult] = useState<IssuanceResult | null>(null);
   const [ipfsConnected, setIpfsConnected] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'all'>('all');
-  const [wallet, setWallet] = useState<WalletState>({
-    connected: false,
-    address: null,
-    chainId: null,
-    balance: null,
+  const [walletSettings, setWalletSettings] = useState<{ walletAddress: string; isConfigured: boolean }>({
+    walletAddress: '',
+    isConfigured: false,
   });
 
   useEffect(() => {
-    // Check IPFS availability on mount
+    // Check IPFS availability and load wallet settings on mount
     isIPFSAvailable().then(setIpfsConnected);
+    setWalletSettings(getWalletSettings());
   }, []);
 
   const handleDocTypeSelect = (docType: DocumentType) => {
@@ -313,7 +315,15 @@ export default function IssueCertificate() {
               <Cloud className="w-4 h-4" />
               {ipfsConnected ? 'IPFS Connected' : 'IPFS Checking...'}
             </div>
-            <WalletConnect onWalletChange={setWallet} />
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm",
+              walletSettings.isConfigured ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+            )}>
+              <Wallet className="w-4 h-4" />
+              {walletSettings.isConfigured 
+                ? `${walletSettings.walletAddress.slice(0, 6)}...${walletSettings.walletAddress.slice(-4)}`
+                : 'Wallet Not Configured'}
+            </div>
           </div>
         </div>
         
@@ -352,6 +362,21 @@ export default function IssueCertificate() {
         
         {/* Step Content */}
         <div className="p-8 rounded-xl bg-card border border-border">
+          {/* Wallet Configuration Alert */}
+          {!walletSettings.isConfigured && step !== 'processing' && step !== 'complete' && (
+            <Alert className="mb-6 border-warning bg-warning/10">
+              <Settings className="w-4 h-4 text-warning" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Configure your wallet address in settings to issue certificates on blockchain.</span>
+                <Link to="/wallet-settings">
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <Settings className="w-3 h-3" />
+                    Configure Wallet
+                  </Button>
+                </Link>
+              </AlertDescription>
+            </Alert>
+          )}
           {/* Document Type Selection Step */}
           {step === 'select-type' && (
             <div className="space-y-6">
