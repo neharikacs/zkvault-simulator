@@ -1,8 +1,8 @@
 /**
  * Ethereum Smart Contract Definitions
  * 
- * Professional Solidity contracts for certificate management on Sepolia testnet.
- * These are the actual contract ABIs and bytecode that will be deployed.
+ * Professional Solidity contracts for certificate management on Base Sepolia testnet.
+ * Base is Coinbase's L2 - fast (~2s blocks), low cost, EVM compatible.
  */
 
 // Contract ABI for CertificateRegistry
@@ -130,7 +130,7 @@ pragma solidity ^0.8.19;
 /**
  * @title CertificateRegistry
  * @dev Professional certificate management with ZK-SNARK proof storage
- * @notice Deployed on Sepolia testnet for zero-cost operations
+ * @notice Deployed on Base Sepolia testnet for fast, low-cost operations
  */
 contract CertificateRegistry {
     enum CertificateStatus { Active, Revoked, Suspended }
@@ -370,19 +370,22 @@ contract CertificateRegistry {
 // Contract bytecode (compiled from source)
 export const CERTIFICATE_REGISTRY_BYTECODE = '0x608060405234801561001057600080fd5b50611a5c806100206000396000f3fe608060405234801561001057600080fd5b50600436106100935760003560e01c80639201de55116100665780639201de55146101195780639c7e8a0c1461012c578063b1a5f2d61461013f578063c84aae1714610152578063f2fde38b1461016557600080fd5b806318160ddd1461009857806324953eaa146100b65780633ccfd60b146100d65780638da5cb5b146100ee575b600080fd5b6100a0610178565b6040516100ad919061147e565b60405180910390f35b6100c96100c4366004611487565b610187565b6040516100ad91906114c9565b6100de6102d1565b005b600054604080516001600160a01b039092168252519081900360200190f35b';
 
-// Network configuration
-export const SEPOLIA_CONFIG = {
-  chainId: 11155111,
-  chainName: 'Sepolia Testnet',
-  rpcUrl: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
-  blockExplorer: 'https://sepolia.etherscan.io',
+// Network configuration - Base Sepolia (Coinbase L2 Testnet)
+export const BASE_SEPOLIA_CONFIG = {
+  chainId: 84532,
+  chainName: 'Base Sepolia',
+  rpcUrl: 'https://sepolia.base.org',
+  blockExplorer: 'https://sepolia.basescan.org',
   currency: {
-    name: 'Sepolia ETH',
+    name: 'Ethereum',
     symbol: 'ETH',
     decimals: 18,
   },
 };
 
-// Pre-deployed contract address on Sepolia (for demo purposes)
+// Legacy export for backward compatibility
+export const SEPOLIA_CONFIG = BASE_SEPOLIA_CONFIG;
+
+// Pre-deployed contract address on Base Sepolia (for demo purposes)
 // In production, you would deploy your own contract
 export const DEPLOYED_CONTRACT_ADDRESS = '0x1234567890123456789012345678901234567890';

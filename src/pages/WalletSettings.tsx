@@ -19,7 +19,7 @@ import {
   clearWalletSettings,
   isValidEthereumAddress 
 } from '@/lib/services/walletSettingsService';
-import { SEPOLIA_CONFIG } from '@/lib/ethereum/contracts';
+import { BASE_SEPOLIA_CONFIG } from '@/lib/ethereum/contracts';
 
 export default function WalletSettings() {
   const [walletAddress, setWalletAddress] = useState('');
@@ -74,7 +74,7 @@ export default function WalletSettings() {
         <div>
           <h1 className="text-3xl font-bold">Wallet Settings</h1>
           <p className="text-muted-foreground mt-2">
-            Configure your MetaMask wallet for certificate issuance on Sepolia testnet
+            Configure your MetaMask wallet for certificate issuance on Base Sepolia (Coinbase L2)
           </p>
         </div>
 
@@ -118,15 +118,15 @@ export default function WalletSettings() {
 
             <Alert>
               <AlertDescription className="space-y-2">
-                <p><strong>Network:</strong> Sepolia Testnet (Chain ID: {SEPOLIA_CONFIG.chainId})</p>
-                <p><strong>Note:</strong> Make sure your MetaMask wallet is connected to Sepolia testnet and has some test ETH for gas fees.</p>
+                <p><strong>Network:</strong> Base Sepolia (Chain ID: {BASE_SEPOLIA_CONFIG.chainId})</p>
+                <p><strong>Note:</strong> Make sure your MetaMask wallet is connected to Base Sepolia and has some test ETH for gas fees.</p>
                 <a 
-                  href="https://sepoliafaucet.com/" 
+                  href="https://www.coinbase.com/faucets/base-ethereum-goerli-faucet" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
-                  Get free Sepolia ETH from faucet
+                  Get free Base Sepolia ETH from faucet
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </AlertDescription>
@@ -151,12 +151,12 @@ export default function WalletSettings() {
                 <AlertDescription>
                   Wallet configured successfully. Your address will be used for certificate issuance.
                   <a 
-                    href={`${SEPOLIA_CONFIG.blockExplorer}/address/${walletAddress}`}
+                    href={`${BASE_SEPOLIA_CONFIG.blockExplorer}/address/${walletAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block mt-2 text-primary hover:underline inline-flex items-center gap-1"
                   >
-                    View on Etherscan
+                    View on BaseScan
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </AlertDescription>
@@ -177,7 +177,7 @@ export default function WalletSettings() {
               2. When issuing certificates, the system will use this address as the issuer
             </p>
             <p>
-              3. Certificate data will be stored on IPFS and the hash will be recorded on Sepolia blockchain
+              3. Certificate data will be stored on IPFS and the hash will be recorded on Base Sepolia blockchain
             </p>
             <p>
               4. MetaMask will still prompt you to approve transactions when issuing certificates
