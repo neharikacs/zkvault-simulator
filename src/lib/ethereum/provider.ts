@@ -2,10 +2,11 @@
  * Ethereum Provider Integration
  * 
  * Handles wallet connections, transaction signing, and contract interactions
- * for Sepolia testnet with MetaMask support.
+ * for Base Sepolia testnet with MetaMask support.
+ * Base is Coinbase's L2 - fast (~2s blocks), low cost, EVM compatible.
  */
 
-import { SEPOLIA_CONFIG, CERTIFICATE_REGISTRY_ABI, DEPLOYED_CONTRACT_ADDRESS } from './contracts';
+import { BASE_SEPOLIA_CONFIG, CERTIFICATE_REGISTRY_ABI, DEPLOYED_CONTRACT_ADDRESS } from './contracts';
 
 export interface WalletState {
   connected: boolean;
@@ -84,8 +85,8 @@ export function disconnectWallet(): WalletState {
   };
 }
 
-// Switch to Sepolia network
-export async function switchToSepolia(): Promise<void> {
+// Switch to Base Sepolia network
+export async function switchToBaseSepolia(): Promise<void> {
   if (!isMetaMaskInstalled()) {
     throw new Error('MetaMask is not installed');
   }
@@ -93,7 +94,7 @@ export async function switchToSepolia(): Promise<void> {
   try {
     await window.ethereum!.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: `0x${SEPOLIA_CONFIG.chainId.toString(16)}` }],
+      params: [{ chainId: `0x${BASE_SEPOLIA_CONFIG.chainId.toString(16)}` }],
     });
   } catch (switchError: unknown) {
     // If the chain doesn't exist, add it
@@ -101,11 +102,11 @@ export async function switchToSepolia(): Promise<void> {
       await window.ethereum!.request({
         method: 'wallet_addEthereumChain',
         params: [{
-          chainId: `0x${SEPOLIA_CONFIG.chainId.toString(16)}`,
-          chainName: SEPOLIA_CONFIG.chainName,
-          rpcUrls: [SEPOLIA_CONFIG.rpcUrl],
-          blockExplorerUrls: [SEPOLIA_CONFIG.blockExplorer],
-          nativeCurrency: SEPOLIA_CONFIG.currency,
+          chainId: `0x${BASE_SEPOLIA_CONFIG.chainId.toString(16)}`,
+          chainName: BASE_SEPOLIA_CONFIG.chainName,
+          rpcUrls: [BASE_SEPOLIA_CONFIG.rpcUrl],
+          blockExplorerUrls: [BASE_SEPOLIA_CONFIG.blockExplorer],
+          nativeCurrency: BASE_SEPOLIA_CONFIG.currency,
         }],
       });
     } else {
@@ -113,6 +114,9 @@ export async function switchToSepolia(): Promise<void> {
     }
   }
 }
+
+// Legacy export for backward compatibility
+export const switchToSepolia = switchToBaseSepolia;
 
 // Format wei to ether
 function formatEther(wei: string): string {
@@ -202,7 +206,7 @@ export async function sendTransaction(
       success: receipt.status === '0x1',
       hash: txHash,
       blockNumber: parseInt(receipt.blockNumber, 16),
-      explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}/tx/${txHash}`,
+      explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorer}/tx/${txHash}`,
     };
   } catch (error) {
     console.error('Transaction error:', error);
