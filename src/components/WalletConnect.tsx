@@ -25,8 +25,9 @@ import {
   subscribeToWalletEvents,
   type WalletState,
 } from '@/lib/ethereum/provider';
-import { BASE_SEPOLIA_CONFIG } from '@/lib/ethereum/contracts';
+import { BASE_SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface WalletConnectProps {
   onWalletChange?: (wallet: WalletState) => void;
@@ -133,16 +134,23 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
 
   if (!wallet.connected) {
     return (
-      <Button
-        onClick={() => handleConnect()}
-        disabled={isConnecting}
-        variant="outline"
-        size="sm"
-        className={cn("gap-2", className)}
-      >
-        <Wallet className="w-4 h-4" />
-        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-      </Button>
+      <div className={cn("flex items-center gap-2", className)}>
+        {!IS_CONTRACT_DEPLOYED && (
+          <span className="text-xs text-warning bg-warning/10 px-2 py-1 rounded">
+            Contract not deployed
+          </span>
+        )}
+        <Button
+          onClick={() => handleConnect()}
+          disabled={isConnecting}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+        >
+          <Wallet className="w-4 h-4" />
+          {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+        </Button>
+      </div>
     );
   }
 

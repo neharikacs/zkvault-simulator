@@ -27,7 +27,7 @@ import {
   issueCertificateOnEthereum,
   type WalletState,
 } from '@/lib/ethereum/provider';
-import { SEPOLIA_CONFIG } from '@/lib/ethereum/contracts';
+import { BASE_SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
 import { 
   DOCUMENT_TYPES, 
   getDocumentTypeById, 
@@ -72,7 +72,8 @@ interface IssuanceResult {
   ipfsUrl?: string;
   ethereumTxHash?: string;
   ethereumExplorerUrl?: string;
-  network: 'ethereum' | 'simulation';
+  ethereumBlockNumber?: number;
+  network: 'ethereum' | 'simulation' | 'both';
 }
 
 export default function IssueCertificate() {
@@ -186,8 +187,8 @@ export default function IssueCertificate() {
         selectedDisclosures,
       });
       
-      // Step 4: Store in blockchain with smart contract
-      setProcessingStep('Executing smart contract...');
+      // Step 4: Store in local blockchain simulation
+      setProcessingStep('Recording on local blockchain...');
       
       const blockchainResult = await issueCertificate({
         documentHash: fileHash,
@@ -205,6 +206,55 @@ export default function IssueCertificate() {
         },
       });
       
+      // Step 5: Issue on real Base Sepolia blockchain if wallet is connected and contract is deployed
+      let ethereumTxHash: string | undefined;
+      let ethereumExplorerUrl: string | undefined;
+      let ethereumBlockNumber: number | undefined;
+      let networkUsed: 'ethereum' | 'simulation' | 'both' = 'simulation';
+      
+      if (IS_CONTRACT_DEPLOYED && isMetaMaskInstalled() && walletSettings.isConfigured) {
+        setProcessingStep('Issuing on Base Sepolia blockchain...');
+        
+        try {
+          // Create proof hash from the zk-SNARK proof
+          const proofHash = '0x' + fileHash.slice(0, 64);
+          
+          // Encode zk-SNARK proof data as bytes
+          const zkProofDataStr = JSON.stringify(proof.proof).slice(0, 256);
+          const zkProofData = '0x' + Array.from(new TextEncoder().encode(zkProofDataStr))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+          
+          const ethereumResult = await issueCertificateOnEthereum({
+            documentHash: '0x' + fileHash,
+            holder: walletSettings.walletAddress,
+            documentType: selectedDocType.id,
+            ipfsCid: cid,
+            proofHash,
+            zkProofData,
+            from: walletSettings.walletAddress,
+          });
+          
+          if (ethereumResult.success && ethereumResult.hash) {
+            ethereumTxHash = ethereumResult.hash;
+            ethereumExplorerUrl = ethereumResult.explorerUrl;
+            ethereumBlockNumber = ethereumResult.blockNumber;
+            networkUsed = 'both';
+            toast.success('Certificate issued on Base Sepolia blockchain!');
+          } else {
+            console.error('Ethereum issuance failed:', ethereumResult.error);
+            toast.warning('Local issuance succeeded, but blockchain issuance failed: ' + (ethereumResult.error || 'Unknown error'));
+          }
+        } catch (ethError) {
+          console.error('Ethereum issuance error:', ethError);
+          toast.warning('Local issuance succeeded, but blockchain issuance failed');
+        }
+      } else if (!IS_CONTRACT_DEPLOYED) {
+        toast.info('Contract not deployed - using local simulation only');
+      } else if (!walletSettings.isConfigured) {
+        toast.info('Wallet not configured - using local simulation only');
+      }
+      
       setResult({
         cid,
         hash: fileHash,
@@ -213,11 +263,19 @@ export default function IssueCertificate() {
         blockNumber: blockchainResult.block.number,
         certificateId: blockchainResult.certificate.id,
         ipfsUrl,
-        network: 'simulation',
+        ethereumTxHash,
+        ethereumExplorerUrl,
+        ethereumBlockNumber,
+        network: networkUsed,
       });
       
       setStep('complete');
-      toast.success('Certificate issued successfully on blockchain!');
+      
+      if (networkUsed === 'both') {
+        toast.success('Certificate issued on both local and Base Sepolia blockchain!');
+      } else {
+        toast.success('Certificate issued successfully (local simulation)');
+      }
       
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to issue certificate');
@@ -717,11 +775,11 @@ export default function IssueCertificate() {
                   </div>
                 </div>
                 
-                {/* Transaction */}
+                {/* Local Transaction */}
                 <div className="p-4 rounded-lg bg-secondary/50 space-y-2">
                   <div className="flex items-center gap-2">
                     <Database className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-foreground">Transaction Hash</span>
+                    <span className="text-sm font-medium text-foreground">Local Transaction Hash</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs font-mono bg-background p-2 rounded overflow-x-auto">
@@ -731,8 +789,41 @@ export default function IssueCertificate() {
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Block #{result.blockNumber}</p>
+                  <p className="text-xs text-muted-foreground">Local Block #{result.blockNumber}</p>
                 </div>
+
+                {/* Ethereum Transaction (if issued on chain) */}
+                {result.ethereumTxHash && (
+                  <div className="p-4 rounded-lg bg-success/10 border border-success/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Blocks className="w-4 h-4 text-success" />
+                        <span className="text-sm font-medium text-success">Base Sepolia Transaction</span>
+                      </div>
+                      {result.ethereumExplorerUrl && (
+                        <a
+                          href={result.ethereumExplorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-success hover:underline flex items-center gap-1"
+                        >
+                          View on BaseScan <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs font-mono bg-background p-2 rounded overflow-x-auto">
+                        {result.ethereumTxHash}
+                      </code>
+                      <Button variant="ghost" size="icon" onClick={() => copyToClipboard(result.ethereumTxHash!, 'Ethereum TX')}>
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {result.ethereumBlockNumber && (
+                      <p className="text-xs text-success">Block #{result.ethereumBlockNumber} on Base Sepolia</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Certificate ID */}
                 <div className="p-4 rounded-lg bg-secondary/50 space-y-2">
