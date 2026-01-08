@@ -386,6 +386,27 @@ export const BASE_SEPOLIA_CONFIG = {
 // Legacy export for backward compatibility
 export const SEPOLIA_CONFIG = BASE_SEPOLIA_CONFIG;
 
-// Pre-deployed contract address on Base Sepolia (for demo purposes)
-// In production, you would deploy your own contract
-export const DEPLOYED_CONTRACT_ADDRESS = '0x1234567890123456789012345678901234567890';
+/**
+ * DEPLOYMENT INSTRUCTIONS:
+ * 
+ * To deploy CertificateRegistry on Base Sepolia:
+ * 
+ * 1. Go to https://remix.ethereum.org
+ * 2. Create new file "CertificateRegistry.sol" and paste CERTIFICATE_REGISTRY_SOURCE
+ * 3. Compile with Solidity 0.8.19+
+ * 4. Deploy tab → Environment: "Injected Provider - MetaMask"
+ * 5. Ensure MetaMask is on Base Sepolia (Chain ID: 84532)
+ * 6. Get free ETH from: https://www.alchemy.com/faucets/base-sepolia
+ * 7. Click "Deploy" and confirm in MetaMask
+ * 8. Copy deployed contract address and update DEPLOYED_CONTRACT_ADDRESS below
+ * 
+ * RPC: https://sepolia.base.org
+ * Explorer: https://sepolia.basescan.org
+ */
+
+// TODO: Replace with your deployed contract address after deployment
+// The current address is a placeholder - deploy the contract first!
+export const DEPLOYED_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+// Flag to indicate if contract is deployed (set to true after deployment)
+export const IS_CONTRACT_DEPLOYED = DEPLOYED_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
