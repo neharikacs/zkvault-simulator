@@ -1,8 +1,7 @@
 /**
  * Wallet Connect Component
  * 
- * Professional MetaMask wallet connection for Base Sepolia testnet.
- * Base is Coinbase's L2 - fast (~2s blocks), low cost, EVM compatible.
+ * Professional MetaMask wallet connection for Ethereum Sepolia testnet.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -21,11 +20,11 @@ import {
   isMetaMaskInstalled,
   connectWallet,
   disconnectWallet,
-  switchToBaseSepolia,
+  switchToSepolia,
   subscribeToWalletEvents,
   type WalletState,
 } from '@/lib/ethereum/provider';
-import { BASE_SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
+import { SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -44,7 +43,7 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
-  const isCorrectNetwork = wallet.chainId === BASE_SEPOLIA_CONFIG.chainId;
+  const isCorrectNetwork = wallet.chainId === SEPOLIA_CONFIG.chainId;
 
   const updateWallet = useCallback((newState: WalletState) => {
     setWallet(newState);
@@ -90,8 +89,8 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
       const state = await connectWallet();
       updateWallet(state);
       
-      if (state.chainId !== BASE_SEPOLIA_CONFIG.chainId) {
-        toast.warning('Please switch to Base Sepolia for fast, low-cost transactions', {
+      if (state.chainId !== SEPOLIA_CONFIG.chainId) {
+        toast.warning('Please switch to Sepolia testnet', {
           action: {
             label: 'Switch Network',
             onClick: handleSwitchNetwork,
@@ -117,10 +116,10 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
   const handleSwitchNetwork = async () => {
     setIsSwitchingNetwork(true);
     try {
-      await switchToBaseSepolia();
+      await switchToSepolia();
       const state = await connectWallet();
       updateWallet(state);
-      toast.success('Switched to Base Sepolia');
+      toast.success('Switched to Sepolia');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to switch network');
     } finally {
@@ -198,7 +197,7 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
             {isCorrectNetwork ? (
               <>
                 <CheckCircle className="w-3 h-3" />
-                Base Sepolia
+                Sepolia
               </>
             ) : (
               <>
@@ -214,15 +213,15 @@ export function WalletConnect({ onWalletChange, className }: WalletConnectProps)
         {!isCorrectNetwork && (
           <DropdownMenuItem onClick={handleSwitchNetwork} disabled={isSwitchingNetwork}>
             <RefreshCw className={cn("w-4 h-4 mr-2", isSwitchingNetwork && "animate-spin")} />
-            Switch to Base Sepolia
+            Switch to Sepolia
           </DropdownMenuItem>
         )}
         
         <DropdownMenuItem
-          onClick={() => window.open(`${BASE_SEPOLIA_CONFIG.blockExplorer}/address/${wallet.address}`, '_blank')}
+          onClick={() => window.open(`${SEPOLIA_CONFIG.blockExplorer}/address/${wallet.address}`, '_blank')}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          View on BaseScan
+          View on Etherscan
         </DropdownMenuItem>
         
         <DropdownMenuItem onClick={handleDisconnect} className="text-destructive">

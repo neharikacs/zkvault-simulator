@@ -13,7 +13,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { verifyCertificateOnChain, getCertificateByHash } from '@/lib/blockchain';
 import { verifyCertificateOnEthereum, isMetaMaskInstalled, callViewFunction } from '@/lib/ethereum/provider';
-import { BASE_SEPOLIA_CONFIG, DEPLOYED_CONTRACT_ADDRESS, IS_CONTRACT_DEPLOYED } from '@/lib/ethereum/contracts';
+import { SEPOLIA_CONFIG, DEPLOYED_CONTRACT_ADDRESS, IS_CONTRACT_DEPLOYED } from '@/lib/ethereum/contracts';
 import { verifyProof, getDisclosureDescriptions, DisclosedAttribute } from '@/lib/zksnark';
 import { ZKProof, deserializeProof } from '@/lib/zksnark/prover';
 import { Button } from '@/components/ui/button';
@@ -116,16 +116,16 @@ export default function VerifyCertificate() {
       
       setVerificationStep(3);
       
-      // Verify on Base Sepolia if MetaMask is available and contract is deployed
+      // Verify on Ethereum Sepolia if MetaMask is available and contract is deployed
       let ethereumVerification = null;
       if (isMetaMaskInstalled() && IS_CONTRACT_DEPLOYED) {
         try {
           const ethResult = await verifyCertificateOnEthereum(certificateHash.trim());
           ethereumVerification = {
             verified: ethResult.isValid,
-            network: 'Base Sepolia',
+            network: 'Ethereum Sepolia',
             contractAddress: DEPLOYED_CONTRACT_ADDRESS,
-            explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
+            explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
             issuer: ethResult.issuer,
             holder: ethResult.holder,
             status: ethResult.status === 0 ? 'Pending' : 
@@ -134,22 +134,22 @@ export default function VerifyCertificate() {
                    ethResult.status === 3 ? 'Suspended' : 'Unknown',
           };
         } catch (ethError) {
-          console.log('Base Sepolia verification skipped:', ethError);
+          console.log('Ethereum Sepolia verification skipped:', ethError);
           // Fallback to simulation-only verification
           ethereumVerification = {
             verified: false,
-            network: 'Base Sepolia',
+            network: 'Ethereum Sepolia',
             contractAddress: DEPLOYED_CONTRACT_ADDRESS,
-            explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
+            explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}/address/${DEPLOYED_CONTRACT_ADDRESS}`,
             status: 'Not found on chain',
           };
         }
       } else if (!IS_CONTRACT_DEPLOYED) {
         ethereumVerification = {
           verified: false,
-          network: 'Base Sepolia',
+          network: 'Ethereum Sepolia',
           contractAddress: DEPLOYED_CONTRACT_ADDRESS,
-          explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorer}`,
+          explorerUrl: `${SEPOLIA_CONFIG.blockExplorer}`,
           status: 'Contract not deployed',
         };
       }
@@ -281,7 +281,7 @@ export default function VerifyCertificate() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Verify Certificate</h1>
           <p className="text-muted-foreground mt-1">
-            Enter certificate hash and proof to verify authenticity on Base Sepolia
+            Enter certificate hash and proof to verify authenticity on Ethereum Sepolia
           </p>
         </div>
         
@@ -306,7 +306,7 @@ export default function VerifyCertificate() {
                 : "MetaMask not detected - Using simulation only"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Network: Base Sepolia • Contract: {IS_CONTRACT_DEPLOYED ? `${DEPLOYED_CONTRACT_ADDRESS.slice(0, 10)}...` : 'Not deployed'}
+              Network: Ethereum Sepolia • Contract: {IS_CONTRACT_DEPLOYED ? `${DEPLOYED_CONTRACT_ADDRESS.slice(0, 10)}...` : 'Not deployed'}
             </p>
           </div>
         </div>
@@ -450,7 +450,7 @@ export default function VerifyCertificate() {
                         rel="noopener noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"
                       >
-                        View on BaseScan <ExternalLink className="w-3 h-3" />
+                        View on Etherscan <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

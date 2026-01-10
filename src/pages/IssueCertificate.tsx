@@ -27,7 +27,7 @@ import {
   issueCertificateOnEthereum,
   type WalletState,
 } from '@/lib/ethereum/provider';
-import { BASE_SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
+import { SEPOLIA_CONFIG, IS_CONTRACT_DEPLOYED, DEPLOYED_CONTRACT_ADDRESS } from '@/lib/ethereum/contracts';
 import { 
   DOCUMENT_TYPES, 
   getDocumentTypeById, 
@@ -206,14 +206,14 @@ export default function IssueCertificate() {
         },
       });
       
-      // Step 5: Issue on real Base Sepolia blockchain if wallet is connected and contract is deployed
+      // Step 5: Issue on real Ethereum Sepolia blockchain if wallet is connected and contract is deployed
       let ethereumTxHash: string | undefined;
       let ethereumExplorerUrl: string | undefined;
       let ethereumBlockNumber: number | undefined;
       let networkUsed: 'ethereum' | 'simulation' | 'both' = 'simulation';
       
       if (IS_CONTRACT_DEPLOYED && isMetaMaskInstalled() && walletSettings.isConfigured) {
-        setProcessingStep('Issuing on Base Sepolia blockchain...');
+        setProcessingStep('Issuing on Ethereum Sepolia blockchain...');
         
         try {
           // Create proof hash from the zk-SNARK proof
@@ -240,7 +240,7 @@ export default function IssueCertificate() {
             ethereumExplorerUrl = ethereumResult.explorerUrl;
             ethereumBlockNumber = ethereumResult.blockNumber;
             networkUsed = 'both';
-            toast.success('Certificate issued on Base Sepolia blockchain!');
+            toast.success('Certificate issued on Ethereum Sepolia blockchain!');
           } else {
             console.error('Ethereum issuance failed:', ethereumResult.error);
             toast.warning('Local issuance succeeded, but blockchain issuance failed: ' + (ethereumResult.error || 'Unknown error'));
@@ -272,7 +272,7 @@ export default function IssueCertificate() {
       setStep('complete');
       
       if (networkUsed === 'both') {
-        toast.success('Certificate issued on both local and Base Sepolia blockchain!');
+        toast.success('Certificate issued on both local and Ethereum Sepolia blockchain!');
       } else {
         toast.success('Certificate issued successfully (local simulation)');
       }
