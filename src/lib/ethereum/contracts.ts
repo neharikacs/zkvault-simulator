@@ -1,8 +1,7 @@
 /**
  * Ethereum Smart Contract Definitions
  * 
- * Professional Solidity contracts for certificate management on Base Sepolia testnet.
- * Base is Coinbase's L2 - fast (~2s blocks), low cost, EVM compatible.
+ * Professional Solidity contracts for certificate management on Ethereum Sepolia testnet.
  */
 
 // Contract ABI for CertificateRegistry
@@ -130,7 +129,7 @@ pragma solidity ^0.8.19;
 /**
  * @title CertificateRegistry
  * @dev Professional certificate management with ZK-SNARK proof storage
- * @notice Deployed on Base Sepolia testnet for fast, low-cost operations
+ * @notice Deployed on Ethereum Sepolia testnet
  */
 contract CertificateRegistry {
     enum CertificateStatus { Active, Revoked, Suspended }
@@ -370,38 +369,38 @@ contract CertificateRegistry {
 // Contract bytecode (compiled from source)
 export const CERTIFICATE_REGISTRY_BYTECODE = '0x608060405234801561001057600080fd5b50611a5c806100206000396000f3fe608060405234801561001057600080fd5b50600436106100935760003560e01c80639201de55116100665780639201de55146101195780639c7e8a0c1461012c578063b1a5f2d61461013f578063c84aae1714610152578063f2fde38b1461016557600080fd5b806318160ddd1461009857806324953eaa146100b65780633ccfd60b146100d65780638da5cb5b146100ee575b600080fd5b6100a0610178565b6040516100ad919061147e565b60405180910390f35b6100c96100c4366004611487565b610187565b6040516100ad91906114c9565b6100de6102d1565b005b600054604080516001600160a01b039092168252519081900360200190f35b';
 
-// Network configuration - Base Sepolia (Coinbase L2 Testnet)
-export const BASE_SEPOLIA_CONFIG = {
-  chainId: 84532,
-  chainName: 'Base Sepolia',
-  rpcUrl: 'https://sepolia.base.org',
-  blockExplorer: 'https://sepolia.basescan.org',
+// Network configuration - Ethereum Sepolia Testnet
+export const SEPOLIA_CONFIG = {
+  chainId: 11155111,
+  chainName: 'Sepolia',
+  rpcUrl: 'https://rpc.sepolia.org',
+  blockExplorer: 'https://sepolia.etherscan.io',
   currency: {
-    name: 'Ethereum',
+    name: 'Sepolia ETH',
     symbol: 'ETH',
     decimals: 18,
   },
 };
 
 // Legacy export for backward compatibility
-export const SEPOLIA_CONFIG = BASE_SEPOLIA_CONFIG;
+export const BASE_SEPOLIA_CONFIG = SEPOLIA_CONFIG;
 
 /**
  * DEPLOYMENT INSTRUCTIONS:
  * 
- * To deploy CertificateRegistry on Base Sepolia:
+ * To deploy CertificateRegistry on Ethereum Sepolia:
  * 
  * 1. Go to https://remix.ethereum.org
  * 2. Create new file "CertificateRegistry.sol" and paste CERTIFICATE_REGISTRY_SOURCE
  * 3. Compile with Solidity 0.8.19+
  * 4. Deploy tab → Environment: "Injected Provider - MetaMask"
- * 5. Ensure MetaMask is on Base Sepolia (Chain ID: 84532)
- * 6. Get free ETH from: https://www.alchemy.com/faucets/base-sepolia
+ * 5. Ensure MetaMask is on Sepolia (Chain ID: 11155111)
+ * 6. Get free ETH from: https://sepoliafaucet.com
  * 7. Click "Deploy" and confirm in MetaMask
  * 8. Copy deployed contract address and update DEPLOYED_CONTRACT_ADDRESS below
  * 
- * RPC: https://sepolia.base.org
- * Explorer: https://sepolia.basescan.org
+ * RPC: https://rpc.sepolia.org
+ * Explorer: https://sepolia.etherscan.io
  */
 
 // TODO: Replace with your deployed contract address after deployment
