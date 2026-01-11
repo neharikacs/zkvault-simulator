@@ -403,9 +403,9 @@ export const BASE_SEPOLIA_CONFIG = SEPOLIA_CONFIG;
  * Explorer: https://sepolia.etherscan.io
  */
 
-// TODO: Replace with your deployed contract address after deployment
-// The current address is a placeholder - deploy the contract first!
-export const DEPLOYED_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000';
+// Deployed contract address on Ethereum Sepolia testnet
+// Contract deployed and verified on Sepolia
+export const DEPLOYED_CONTRACT_ADDRESS = '0xC7065dF3aE7D7B90697dbA023e224E3746Ad1730';
 
-// Flag to indicate if contract is deployed (set to true after deployment)
-export const IS_CONTRACT_DEPLOYED = DEPLOYED_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
+// Contract is now deployed on Ethereum Sepolia
+export const IS_CONTRACT_DEPLOYED = true;
