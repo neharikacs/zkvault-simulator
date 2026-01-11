@@ -5,8 +5,8 @@
  * for Ethereum Sepolia testnet with MetaMask support.
  */
 
+import { AbiCoder, keccak256, toUtf8Bytes } from 'ethers';
 import { SEPOLIA_CONFIG, CERTIFICATE_REGISTRY_ABI, DEPLOYED_CONTRACT_ADDRESS } from './contracts';
-
 export interface WalletState {
   connected: boolean;
   address: string | null;
@@ -133,37 +133,27 @@ export function stringToBytes32(str: string): string {
   return '0x' + hex.slice(0, 64);
 }
 
-// Encode function call
+// Encode function call with proper ABI encoding using ethers.js
 function encodeFunctionCall(
-  functionName: string,
-  params: (string | boolean | number)[]
+  functionSignature: string,
+  types: string[],
+  values: unknown[]
 ): string {
-  // Simple ABI encoding for our contract functions
-  const functionSignatures: Record<string, string> = {
-    'issueCertificate': '0x5d3b1d30',
-    'verifyCertificate': '0x3d18b912',
-    'revokeCertificate': '0x48cd4cb1',
-    'getCertificateByHash': '0x9c7e8a0c',
-    'getCertificateDetails': '0xb1a5f2d6',
-  };
-
-  const signature = functionSignatures[functionName] || '0x00000000';
+  // Compute the 4-byte function selector from the function signature
+  const selector = keccak256(toUtf8Bytes(functionSignature)).slice(0, 10);
   
-  // Encode parameters (simplified)
-  let encodedParams = '';
-  for (const param of params) {
-    if (typeof param === 'string' && param.startsWith('0x')) {
-      encodedParams += param.slice(2).padStart(64, '0');
-    } else if (typeof param === 'string') {
-      encodedParams += stringToBytes32(param).slice(2);
-    } else if (typeof param === 'boolean') {
-      encodedParams += param ? '1'.padStart(64, '0') : '0'.padStart(64, '0');
-    } else {
-      encodedParams += param.toString(16).padStart(64, '0');
-    }
-  }
-
-  return signature + encodedParams;
+  // Properly encode all parameters including dynamic types
+  const abiCoder = new AbiCoder();
+  const encodedParams = abiCoder.encode(types, values);
+  
+  console.log('Encoding function call:', {
+    signature: functionSignature,
+    selector,
+    types,
+    values: values.map(v => typeof v === 'string' && v.length > 20 ? v.slice(0, 20) + '...' : v),
+  });
+  
+  return selector + encodedParams.slice(2);
 }
 
 // Send transaction to smart contract
@@ -267,14 +257,26 @@ export async function issueCertificateOnEthereum(params: {
   zkProofData: string;
   from: string;
 }): Promise<TransactionResult> {
-  const data = encodeFunctionCall('issueCertificate', [
-    params.documentHash,
-    params.holder,
-    params.documentType,
-    params.ipfsCid,
-    params.proofHash,
-    params.zkProofData,
-  ]);
+  console.log('Issuing certificate on Ethereum with params:', {
+    documentHash: params.documentHash,
+    holder: params.holder,
+    documentType: params.documentType,
+    ipfsCid: params.ipfsCid.slice(0, 20) + '...',
+    proofHash: params.proofHash,
+  });
+
+  const data = encodeFunctionCall(
+    'issueCertificate(bytes32,address,string,string,bytes32,bytes)',
+    ['bytes32', 'address', 'string', 'string', 'bytes32', 'bytes'],
+    [
+      params.documentHash,
+      params.holder,
+      params.documentType,
+      params.ipfsCid,
+      params.proofHash,
+      params.zkProofData,
+    ]
+  );
 
   return sendTransaction(DEPLOYED_CONTRACT_ADDRESS, data, params.from);
 }
@@ -290,7 +292,11 @@ export async function verifyCertificateOnEthereum(
   ipfsCid: string;
   status: number;
 }> {
-  const data = encodeFunctionCall('verifyCertificate', [certificateId]);
+  const data = encodeFunctionCall(
+    'verifyCertificate(bytes32)',
+    ['bytes32'],
+    [certificateId]
+  );
   const result = await callViewFunction(DEPLOYED_CONTRACT_ADDRESS, data);
 
   // Decode result (simplified)

@@ -225,8 +225,11 @@ export default function IssueCertificate() {
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
           
+          // Ensure document hash is exactly 32 bytes (64 hex chars)
+          const documentHash = '0x' + fileHash.slice(0, 64).padEnd(64, '0');
+          
           const ethereumResult = await issueCertificateOnEthereum({
-            documentHash: '0x' + fileHash,
+            documentHash,
             holder: walletSettings.walletAddress,
             documentType: selectedDocType.id,
             ipfsCid: cid,
