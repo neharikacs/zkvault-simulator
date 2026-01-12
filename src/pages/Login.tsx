@@ -1,7 +1,10 @@
 /**
  * Login Page
  * 
- * RBAC authentication page with Supabase Auth
+ * RBAC authentication page for:
+ * - Issuer
+ * - Verifier  
+ * - Admin
  */
 
 import React, { useState } from 'react';
@@ -9,21 +12,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, Mail, Lock, ArrowLeft, Loader2, User, Building } from 'lucide-react';
+import { Shield, Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [organization, setOrganization] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
-  const { login, signup } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
@@ -38,28 +37,25 @@ export default function Login() {
       toast.error(result.message);
     }
   };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  
+  const quickLogin = async (role: 'issuer' | 'verifier' | 'admin') => {
+    const credentials = {
+      issuer: 'issuer@university.edu',
+      verifier: 'verifier@company.com',
+      admin: 'admin@zkvault.io',
+    };
     
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-    
+    setEmail(credentials[role]);
+    setPassword('password');
     setIsLoading(true);
     
-    const result = await signup(email, password, name, organization);
+    const result = await login(credentials[role], 'password');
     
     setIsLoading(false);
     
     if (result.success) {
       toast.success(result.message);
-      setActiveTab('login');
-      // Clear signup fields but keep email
-      setPassword('');
-      setName('');
-      setOrganization('');
+      navigate('/dashboard');
     } else {
       toast.error(result.message);
     }
@@ -90,181 +86,104 @@ export default function Login() {
             </div>
           </div>
           
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Create Account</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              {/* Login Form */}
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  Sign in to your account
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Enter your credentials to access the dashboard
-                </p>
+          {/* Form */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              Sign in to your account
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Enter your credentials to access the dashboard
+            </p>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  required
+                />
               </div>
-              
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  variant="glow" 
-                  className="w-full" 
-                  size="lg"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign In'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
+            </div>
             
-            <TabsContent value="signup">
-              {/* Signup Form */}
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  Create your account
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Sign up to start using ZK-Vault certificates
-                </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                />
               </div>
-              
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="John Doe"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Organization (optional)
-                  </label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Your organization"
-                      value={organization}
-                      onChange={(e) => setOrganization(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      placeholder="At least 6 characters"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  variant="glow" 
-                  className="w-full" 
-                  size="lg"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    'Create Account'
-                  )}
-                </Button>
-                
-                <p className="text-xs text-muted-foreground text-center">
-                  New accounts are assigned the Verifier role by default.
-                  Contact an admin to change your role.
-                </p>
-              </form>
-            </TabsContent>
-          </Tabs>
+            </div>
+            
+            <Button 
+              type="submit" 
+              variant="glow" 
+              className="w-full" 
+              size="lg"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+          
+          {/* Quick Login */}
+          <div className="mt-8 pt-6 border-t border-border">
+            <p className="text-sm text-muted-foreground mb-4 text-center">
+              Quick demo login
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => quickLogin('issuer')}
+                disabled={isLoading}
+              >
+                Issuer
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => quickLogin('verifier')}
+                disabled={isLoading}
+              >
+                Verifier
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => quickLogin('admin')}
+                disabled={isLoading}
+              >
+                Admin
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
       

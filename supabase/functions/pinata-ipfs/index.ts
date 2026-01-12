@@ -3,11 +3,9 @@
  * 
  * Secure server-side Pinata API integration.
  * Handles file uploads, JSON pinning, and connection testing.
- * Requires authentication for all operations.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,39 +20,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Authenticate the request
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    console.error('Missing or invalid Authorization header');
-    return new Response(
-      JSON.stringify({ success: false, error: 'Unauthorized - missing authentication' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  // Verify the JWT token using Supabase
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-  
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } }
-  });
-
-  // Validate the user's session
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    console.error('Invalid user session:', userError);
-    return new Response(
-      JSON.stringify({ success: false, error: 'Unauthorized - invalid session' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const userId = user.id;
-  console.log(`Authenticated request from user: ${userId}`);
-
-  // Get Pinata API keys from secrets
   const apiKey = Deno.env.get('PINATA_API_KEY');
   const secretKey = Deno.env.get('PINATA_SECRET_KEY');
 
@@ -70,7 +35,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    console.log(`Pinata IPFS action: ${action} by user: ${userId}`);
+    console.log(`Pinata IPFS action: ${action}`);
 
     // Test connection
     if (action === 'test') {
@@ -102,8 +67,8 @@ serve(async (req) => {
         pinataContent: content,
         pinataMetadata: metadata ? {
           name: metadata.name || 'json-data',
-          keyvalues: { ...metadata.keyvalues, userId },
-        } : { keyvalues: { userId } },
+          keyvalues: metadata.keyvalues || {},
+        } : undefined,
       };
 
       const response = await fetch(`${PINATA_API_URL}/pinning/pinJSONToIPFS`, {
@@ -122,7 +87,7 @@ serve(async (req) => {
       }
 
       const data = await response.json();
-      console.log(`Pinned JSON to IPFS: ${data.IpfsHash} by user: ${userId}`);
+      console.log(`Pinned JSON to IPFS: ${data.IpfsHash}`);
 
       return new Response(
         JSON.stringify({ 
@@ -150,11 +115,12 @@ serve(async (req) => {
       const formData = new FormData();
       formData.append('file', blob, fileName);
 
-      const metadataObj = {
-        name: metadata?.name || fileName,
-        keyvalues: { ...metadata?.keyvalues, userId },
-      };
-      formData.append('pinataMetadata', JSON.stringify(metadataObj));
+      if (metadata) {
+        formData.append('pinataMetadata', JSON.stringify({
+          name: metadata.name || fileName,
+          keyvalues: metadata.keyvalues || {},
+        }));
+      }
 
       const response = await fetch(`${PINATA_API_URL}/pinning/pinFileToIPFS`, {
         method: 'POST',
@@ -171,7 +137,7 @@ serve(async (req) => {
       }
 
       const data = await response.json();
-      console.log(`Pinned file to IPFS: ${data.IpfsHash} by user: ${userId}`);
+      console.log(`Pinned file to IPFS: ${data.IpfsHash}`);
 
       return new Response(
         JSON.stringify({ 
@@ -200,7 +166,7 @@ serve(async (req) => {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      console.log(`Unpinned from IPFS: ${cid} by user: ${userId}`);
+      console.log(`Unpinned from IPFS: ${cid}`);
       return new Response(
         JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

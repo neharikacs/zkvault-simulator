@@ -1,17 +1,19 @@
 /**
  * RBAC (Role-Based Access Control) AUTHENTICATION CONTEXT
  * 
- * This module implements role-based access control using Supabase Auth.
+ * This module implements the role-based access control system
+ * for ZK-Vault as described in the research paper.
  * 
  * Roles:
  * - ISSUER: Can upload certificates, generate CID, hash, ZKP proof
  * - VERIFIER: Can verify certificates using hash + ZKP proof + CID
  * - ADMIN: Full system access - view all certificates, revoke, suspend, manage users
+ * 
+ * This is a simulated authentication system for demonstration purposes.
+ * In production, this would integrate with proper authentication services.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
 /**
  * User roles as defined in the RBAC specification
@@ -63,187 +65,100 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 };
 
+/**
+ * Demo users for the simulation
+ */
+const DEMO_USERS: User[] = [
+  {
+    id: 'issuer_001',
+    email: 'issuer@university.edu',
+    name: 'Dr. Sarah Johnson',
+    role: 'issuer',
+    organization: 'State University',
+    createdAt: new Date('2024-01-15'),
+    lastLogin: new Date(),
+    isActive: true,
+  },
+  {
+    id: 'verifier_001',
+    email: 'verifier@company.com',
+    name: 'Mike Chen',
+    role: 'verifier',
+    organization: 'TechCorp HR',
+    createdAt: new Date('2024-02-20'),
+    lastLogin: new Date(),
+    isActive: true,
+  },
+  {
+    id: 'admin_001',
+    email: 'admin@zkvault.io',
+    name: 'Admin User',
+    role: 'admin',
+    organization: 'ZK-Vault',
+    createdAt: new Date('2024-01-01'),
+    lastLogin: new Date(),
+    isActive: true,
+  },
+];
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
-  signup: (email: string, password: string, name: string, organization?: string) => Promise<{ success: boolean; message: string }>;
-  logout: () => Promise<void>;
+  logout: () => void;
   hasPermission: (permission: string) => boolean;
-  getAllUsers: () => Promise<User[]>;
-  updateUserRole: (userId: string, role: UserRole) => Promise<{ success: boolean; message: string }>;
+  getAllUsers: () => User[];
+  suspendUser: (userId: string) => void;
+  activateUser: (userId: string) => void;
+  createUser: (userData: { email: string; name: string; role: UserRole; organization?: string }) => { success: boolean; message: string; user?: User };
+  deleteUser: (userId: string) => { success: boolean; message: string };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+  const [users, setUsers] = useState<User[]>(DEMO_USERS);
+  
   /**
-   * Fetch user profile and role from database
-   */
-  const fetchUserProfile = useCallback(async (supabaseUser: SupabaseUser): Promise<User | null> => {
-    try {
-      // Fetch profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', supabaseUser.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-        return null;
-      }
-
-      // Fetch role using the database function
-      const { data: roleData, error: roleError } = await supabase
-        .rpc('get_user_role', { _user_id: supabaseUser.id });
-
-      if (roleError) {
-        console.error('Error fetching role:', roleError);
-        return null;
-      }
-
-      const role = (roleData as UserRole) || 'verifier';
-
-      return {
-        id: supabaseUser.id,
-        email: profile.email,
-        name: profile.name,
-        role,
-        organization: profile.organization,
-        createdAt: new Date(profile.created_at),
-        lastLogin: new Date(),
-        isActive: true,
-      };
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
-      return null;
-    }
-  }, []);
-
-  /**
-   * Initialize auth state and listen for changes
-   */
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event);
-        
-        if (session?.user) {
-          // Use setTimeout to avoid potential race conditions
-          setTimeout(async () => {
-            const userProfile = await fetchUserProfile(session.user);
-            setUser(userProfile);
-            setIsLoading(false);
-          }, 0);
-        } else {
-          setUser(null);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const userProfile = await fetchUserProfile(session.user);
-        setUser(userProfile);
-      }
-      setIsLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [fetchUserProfile]);
-
-  /**
-   * Login with email and password
+   * Simulated login function
+   * 
+   * For demo purposes, accepts these credentials:
+   * - issuer@university.edu / password -> Issuer role
+   * - verifier@company.com / password -> Verifier role
+   * - admin@zkvault.io / password -> Admin role
    */
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { success: false, message: error.message };
-      }
-
-      if (data.user) {
-        const userProfile = await fetchUserProfile(data.user);
-        if (userProfile) {
-          setUser(userProfile);
-          return { success: true, message: `Welcome, ${userProfile.name}` };
-        }
-      }
-
-      return { success: false, message: 'Failed to load user profile' };
-    } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, message: 'An unexpected error occurred' };
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // For demo, password is always "password"
+    if (password !== 'password') {
+      return { success: false, message: 'Invalid credentials' };
     }
-  }, [fetchUserProfile]);
-
-  /**
-   * Sign up with email and password
-   */
-  const signup = useCallback(async (
-    email: string, 
-    password: string, 
-    name: string, 
-    organization?: string
-  ): Promise<{ success: boolean; message: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            name,
-            organization,
-          },
-        },
-      });
-
-      if (error) {
-        return { success: false, message: error.message };
-      }
-
-      if (data.user) {
-        // Update profile with organization if provided
-        if (organization) {
-          await supabase
-            .from('profiles')
-            .update({ organization, name })
-            .eq('user_id', data.user.id);
-        }
-
-        return { success: true, message: 'Account created successfully! You can now sign in.' };
-      }
-
-      return { success: false, message: 'Failed to create account' };
-    } catch (error) {
-      console.error('Signup error:', error);
-      return { success: false, message: 'An unexpected error occurred' };
+    
+    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (!foundUser) {
+      return { success: false, message: 'User not found' };
     }
-  }, []);
-
-  /**
-   * Logout
-   */
-  const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    
+    if (!foundUser.isActive) {
+      return { success: false, message: 'Account is suspended' };
+    }
+    
+    // Update last login
+    const updatedUser = { ...foundUser, lastLogin: new Date() };
+    setUsers(prev => prev.map(u => u.id === foundUser.id ? updatedUser : u));
+    setUser(updatedUser);
+    
+    return { success: true, message: `Welcome, ${foundUser.name}` };
+  }, [users]);
+  
+  const logout = useCallback(() => {
     setUser(null);
   }, []);
-
+  
   /**
    * Check if current user has a specific permission
    */
@@ -251,96 +166,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
     return ROLE_PERMISSIONS[user.role].includes(permission);
   }, [user]);
-
+  
+  const getAllUsers = useCallback(() => users, [users]);
+  
+  const suspendUser = useCallback((userId: string) => {
+    setUsers(prev => prev.map(u => 
+      u.id === userId ? { ...u, isActive: false } : u
+    ));
+  }, []);
+  
+  const activateUser = useCallback((userId: string) => {
+    setUsers(prev => prev.map(u => 
+      u.id === userId ? { ...u, isActive: true } : u
+    ));
+  }, []);
+  
   /**
-   * Get all users (admin only)
+   * Create a new user (Admin only)
    */
-  const getAllUsers = useCallback(async (): Promise<User[]> => {
-    if (!user || user.role !== 'admin') {
-      return [];
+  const createUser = useCallback((userData: { email: string; name: string; role: UserRole; organization?: string }): { success: boolean; message: string; user?: User } => {
+    // Check if email already exists
+    const existingUser = users.find(u => u.email.toLowerCase() === userData.email.toLowerCase());
+    if (existingUser) {
+      return { success: false, message: 'User with this email already exists' };
     }
-
-    try {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (error) {
-        console.error('Error fetching users:', error);
-        return [];
-      }
-
-      // Fetch roles for all users
-      const users: User[] = await Promise.all(
-        profiles.map(async (profile) => {
-          const { data: roleData } = await supabase
-            .rpc('get_user_role', { _user_id: profile.user_id });
-
-          return {
-            id: profile.user_id,
-            email: profile.email,
-            name: profile.name,
-            role: (roleData as UserRole) || 'verifier',
-            organization: profile.organization,
-            createdAt: new Date(profile.created_at),
-            lastLogin: new Date(profile.updated_at),
-            isActive: true,
-          };
-        })
-      );
-
-      return users;
-    } catch (error) {
-      console.error('Error in getAllUsers:', error);
-      return [];
-    }
-  }, [user]);
-
+    
+    const newUser: User = {
+      id: `${userData.role}_${Date.now().toString(36)}`,
+      email: userData.email,
+      name: userData.name,
+      role: userData.role,
+      organization: userData.organization,
+      createdAt: new Date(),
+      lastLogin: new Date(),
+      isActive: true,
+    };
+    
+    setUsers(prev => [...prev, newUser]);
+    
+    return { success: true, message: 'User created successfully', user: newUser };
+  }, [users]);
+  
   /**
-   * Update user role (admin only)
+   * Delete a user (Admin only)
    */
-  const updateUserRole = useCallback(async (
-    userId: string, 
-    role: UserRole
-  ): Promise<{ success: boolean; message: string }> => {
-    if (!user || user.role !== 'admin') {
-      return { success: false, message: 'Unauthorized' };
+  const deleteUser = useCallback((userId: string): { success: boolean; message: string } => {
+    const userToDelete = users.find(u => u.id === userId);
+    if (!userToDelete) {
+      return { success: false, message: 'User not found' };
     }
-
-    try {
-      // Delete existing roles
-      await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
-
-      // Insert new role
-      const { error } = await supabase
-        .from('user_roles')
-        .insert({ user_id: userId, role });
-
-      if (error) {
-        return { success: false, message: error.message };
-      }
-
-      return { success: true, message: 'Role updated successfully' };
-    } catch (error) {
-      console.error('Error updating role:', error);
-      return { success: false, message: 'Failed to update role' };
+    
+    if (user?.id === userId) {
+      return { success: false, message: 'Cannot delete your own account' };
     }
-  }, [user]);
-
+    
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    return { success: true, message: 'User deleted successfully' };
+  }, [users, user]);
+  
   return (
     <AuthContext.Provider value={{
       user,
       isAuthenticated: !!user,
-      isLoading,
       login,
-      signup,
       logout,
       hasPermission,
       getAllUsers,
-      updateUserRole,
+      suspendUser,
+      activateUser,
+      createUser,
+      deleteUser,
     }}>
       {children}
     </AuthContext.Provider>
